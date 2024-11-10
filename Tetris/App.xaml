@@ -1,0 +1,15 @@
+﻿<Application x:Class="Tetris.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Tetris"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="GameBackground">#FFFFFF</SolidColorBrush>
+        <SolidColorBrush x:Key="WindowBackground">#6A29D6</SolidColorBrush>
+        <SolidColorBrush x:Key="GameInfoBackground">#95D629</SolidColorBrush>
+        <SolidColorBrush x:Key="MenuBackground">#95D629</SolidColorBrush>
+        <SolidColorBrush x:Key="OverlayColor">#99000000</SolidColorBrush>
+        <SolidColorBrush x:Key="LightPartTable">#80C8C8C8</SolidColorBrush>
+        <SolidColorBrush x:Key="DarkPartTable">#80646464</SolidColorBrush>
+    </Application.Resources>
+</Application>

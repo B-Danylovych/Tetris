@@ -1,0 +1,505 @@
+﻿<Window x:Class="Tetris.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Tetris"
+        mc:Ignorable="d"
+        Icon="Images/icon.ico"
+        Title="Tetris" Height="450" Width="800"
+        WindowStartupLocation="CenterScreen"
+        KeyDown="Window_KeyDown"
+        KeyUp="Window_KeyUp"
+        Background="{StaticResource WindowBackground}">
+    
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#35146b"/>
+            <Setter Property="Foreground" Value="#F0F0F0"/>
+            <Setter Property="BorderBrush" Value="#000000"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A1C96"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button" x:Key="ArrowsButtonStyle">
+            <Setter Property="BorderThickness" Value="2,2,0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5, 0, 0, 5">   
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    
+    <Viewbox>
+        <Grid>
+            <Border x:Name="GameBorder"
+                    BorderThickness="3"
+                    BorderBrush="Black"
+                    Background="{StaticResource GameInfoBackground}"
+                    >
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="TetrisBorder"
+                            BorderBrush="Black"
+                            BorderThickness="0, 0, 1.5 , 0">
+                        <UniformGrid    x:Name="TetrisGrid"
+                                        Grid.Column="0"
+                                        Width="200"
+                                        Height="400"
+                                        Background="{StaticResource GameBackground}"
+                                        SnapsToDevicePixels="True"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        />
+                    </Border>
+
+                    <Border x:Name="GameInfoBorder" 
+                            Grid.Column="1" 
+                            Width="{Binding ActualWidth, ElementName=TetrisBorder}"
+                            Height="{Binding ActualHeight, ElementName=TetisBorder}"
+                            BorderBrush="Black"
+                            BorderThickness="1.5, 0, 0 , 0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="0.4*"/>
+                                <RowDefinition Height="0.3*"/>
+                                <RowDefinition Height="0.3*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border x:Name="BufferFigureBorder"
+                                    Margin="20"
+                                    BorderBrush="Black"
+                                    BorderThickness="2"
+                                    Background="{StaticResource GameBackground}"
+                                    Grid.Row="0">
+                                <UniformGrid x:Name="BufferFigureGrid"
+                                             VerticalAlignment="Center"
+                                             HorizontalAlignment="Center"
+                                             SnapsToDevicePixels="True" 
+                                             RenderOptions.BitmapScalingMode="HighQuality"
+                                             />
+                            </Border>
+
+                            <Border BorderBrush="Black"
+                                    BorderThickness="2"
+                                    Grid.Row="1"
+                                    Margin="20, 10, 20, 0"
+                                    VerticalAlignment="Top"
+                                    >
+                                <UniformGrid Columns="1"
+                                             >
+                                    <TextBlock  x:Name="ScoreTextBlock"
+                                                Text="Scores: 0" 
+                                                FontSize="20"
+                                                Foreground="Black"
+                                                FontWeight="bold"/>
+                                    <TextBlock  x:Name="LineTextBlock"
+                                                Text="Lines: 0" 
+                                                Foreground="Black"
+                                                FontSize="20"
+                                                FontWeight="bold"/>
+                                </UniformGrid>
+                            </Border>
+                        
+                            <Button x:Name="PauseButton"
+                                    Visibility="Collapsed"
+                                    Content="PAUSE"
+                                    FontSize="30"
+                                    Margin="20"
+                                    Grid.Row="2"
+                                    Click="Pause_Click"/>                            
+                        
+                        </Grid>
+                    </Border>
+
+                </Grid>
+            </Border>
+            <Border x:Name="MenuBorder"
+                    Visibility="Visible"
+                    Background="{StaticResource OverlayColor}">
+                <Grid>
+                    
+                    <TextBlock  x:Name="CountDownText"
+                                FontSize="100"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="Visible"/>
+                    
+                    <Border x:Name="MainMenuBorder"
+                            Margin="100"
+                            Background="{StaticResource MenuBackground}"
+                            CornerRadius="10"
+                            BorderThickness="3"
+                            BorderBrush="Black"
+                            Visibility="Collapsed">
+                        <UniformGrid    x:Name="MainMenu"
+                                        Columns="1" >
+                            <Button Content="RESUME"
+                                    Margin="20, 20, 20, 10"
+                                    Click="Resume_Click"/>
+                            <Button Content="HIGH SCORES"
+                                    Margin="20, 10"
+                                    Click="HighScores_Click"/>
+                            <Button Content="QUIT"
+                                    Margin="20, 10, 20, 20"
+                                    Click="Quit_Click"/>
+                        </UniformGrid>
+                    </Border>
+
+                    <Border x:Name="QuitMenuBorder"
+                            Visibility="Collapsed"
+                            Margin="100, 120"
+                            Background="{StaticResource MenuBackground}"
+                            CornerRadius="10"
+                            BorderThickness="3"
+                            BorderBrush="Black">
+                        <UniformGrid x:Name="QuitMenu"
+                                     Columns="1">
+                            <TextBlock  Text="QUIT GAME?"
+                                        HorizontalAlignment="Center"
+                                        FontSize="25"
+                                        FontWeight="Bold"/>
+                            <Button Content="OK"
+                                    Margin="20, 0, 20, 20"
+                                    Click="OkQuit_Click"/>
+                            <Button Content="CANCEL"
+                                    Margin="20, 0, 20, 20"
+                                    Click="CancelQuit_Click"/>           
+                        </UniformGrid>
+                    </Border>
+
+                    <Border x:Name="HighScoresMenuBorder"
+                            Margin="40"
+                            Background="{StaticResource MenuBackground}"
+                            BorderBrush="Black"
+                            BorderThickness="2"
+                            CornerRadius="10"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="0.25*"/>
+                                <RowDefinition Height="0.75*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0"
+                                    BorderBrush="Black"
+                                    BorderThickness="0,0,0,2">
+                                <Button Margin="80, 20"
+                                        Content="DONE"
+                                        FontSize="25"
+                                        FontWeight="Bold"
+                                        Click="Done_Click"/>
+                            </Border>
+                            
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0"
+                                        BorderThickness="0,0,1,0"
+                                        BorderBrush="Black">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" 
+                                                   Text="HIGH SCORES" 
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="25"
+                                                   FontWeight="Bold"/>
+
+                                        <Border BorderBrush="Black"
+                                                BorderThickness="2,2,2,0"
+                                                Grid.Row="1"
+                                                Margin="10,0">
+                                            <UniformGrid    x:Name="MenuScoreTable"
+                                                            Columns="1" 
+                                                            Rows="5">
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                            </UniformGrid>  
+                                        </Border>
+
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Column="1"
+                                        BorderThickness="1,0,0,0"
+                                        BorderBrush="Black">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" 
+                                                   Text="HIGH LINES" 
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="25"
+                                                   FontWeight="Bold"/>
+
+                                        <Border BorderBrush="Black"
+                                                BorderThickness="2,2,2,0"
+                                                Grid.Row="1"
+                                                Margin="10,0">
+                                            <UniformGrid    x:Name="MenuLinesTable"
+                                                            Columns="1" 
+                                                            Rows="5">
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                            </UniformGrid>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border x:Name="GameOverBorder"
+                            Margin="40"
+                            Background="{StaticResource MenuBackground}"
+                            BorderBrush="Black"
+                            BorderThickness="3"
+                            CornerRadius="10"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="0.25*"/>
+                                <RowDefinition Height="0.75*"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0"
+                                    BorderBrush="Black"
+                                    BorderThickness="0,0,0,2">
+                                <TextBlock Grid.Row="0" 
+                                           Text="GAME OVER"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="50"
+                                           FontWeight="Bold"/>      
+                            </Border>
+                            
+                            
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="0.166*"/>
+                                        <RowDefinition Height="0.333*"/>
+                                        <RowDefinition Height="0.333*"/>
+                                        <RowDefinition Height="0.166*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Button Content="PLAY AGAIN"
+                                            Grid.Row="0"
+                                            FontSize="25"
+                                            FontWeight="Bold"
+                                            Margin="1"
+                                            Click="PlayAgain_Click"/>
+
+
+                                    <UniformGrid    Columns="1"
+                                                    Grid.Row="1">
+                                        <TextBlock Text="Your Score: "
+                                                       FontSize="25"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Bottom"/>
+                                        <TextBlock Text="0"
+                                                       FontSize="25"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Top"/>
+                                    </UniformGrid>
+
+                                    <UniformGrid    Columns="1"
+                                                    Grid.Row="2">
+                                        <TextBlock Text="Your Lines: "
+                                                       FontSize="25"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Bottom"/>
+                                        <TextBlock Text="0"
+                                                       FontSize="25"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Top"/>
+                                    </UniformGrid>
+
+                                    <Grid Grid.Row="3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <Button Grid.Column="0"
+                                                Width="40" 
+                                                HorizontalAlignment="Right"
+                                                Margin="1"
+                                                Click="HomeButton_Click">
+                                            <Image Source="Images/Home.png"/>
+                                        </Button>
+
+                                        <Button Grid.Column="1"
+                                                Width="40" 
+                                                HorizontalAlignment="Right"
+                                                Margin="1,1,0,1"
+                                                Style="{StaticResource ArrowsButtonStyle}"
+                                                Click="ArrowsButton_Click">            
+                                            <Image Source="Images/Arrows.png"/>
+                                        </Button>
+
+                                    </Grid>
+                                    
+                                </Grid>
+
+                                <Border Grid.Column="1"
+                                        BorderBrush="Black"
+                                        BorderThickness="2,0,0,0">
+                                    <Grid Grid.Column="1">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock x:Name="GameOverScoresTitle"
+                                                   Grid.Row="0" 
+                                                   Text="HIGH SCORES" 
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="20"
+                                                   FontWeight="Bold"/>
+                                        <Border BorderBrush="Black"
+                                                    BorderThickness="2,2,2,0"
+                                                    Margin="10,0"
+                                                    Grid.Row="1">
+                                            <UniformGrid    x:Name="GameOverScoresTable"
+                                                            Columns="1" 
+                                                            Rows="5">
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                                <Border Background="{StaticResource LightPartTable}"/>
+                                                <Border Background="{StaticResource DarkPartTable}"/>
+                                            </UniformGrid>
+                                        </Border>
+                                    </Grid> 
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+            <Border x:Name="StartBorder"
+                    Visibility="Visible"
+                    Background="{StaticResource GameInfoBackground}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="0.3*" />
+                        <RowDefinition Height="0.7*" />
+                    </Grid.RowDefinitions>
+
+                    <Button Grid.Row="0"
+                            Margin="117,40,123,40"
+                            Content="PLAY"
+                            FontSize="25"
+                            FontWeight="Bold"
+                            Click="Play_Click"
+                            />
+
+
+                    <DockPanel  Grid.Row="1" 
+                                Margin="40, 0, 80, 30">
+                        
+                        <Button Width="40" 
+                                Margin="1,1,0,1"
+                                VerticalAlignment="Center"
+                                Style="{StaticResource ArrowsButtonStyle}"
+                                Click="ArrowsButton_Click">
+                            <Image Source="Images/Arrows.png"/>
+                        </Button>
+                        <Border CornerRadius="10"
+                                BorderBrush="Black"
+                                BorderThickness="3"
+                                Background="{StaticResource MenuBackground}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock x:Name="StartScoresTitle"
+                                           Grid.Row="0" 
+                                           Text="HIGH SCORES" 
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="25"
+                                           FontWeight="Bold"/>
+
+                                <Border BorderBrush="Black"
+                                        BorderThickness="2"
+                                        Grid.Row="1"
+                                        Margin="10, 0, 10, 10">
+                                    <UniformGrid    x:Name="StartScoresTable"
+                                                    Columns="1" 
+                                                    Rows="5">
+                                        <Border Background="{StaticResource DarkPartTable}"/>
+                                        <Border Background="{StaticResource LightPartTable}"/>
+                                        <Border Background="{StaticResource DarkPartTable}"/>
+                                        <Border Background="{StaticResource LightPartTable}"/>
+                                        <Border Background="{StaticResource DarkPartTable}"/>
+                                    </UniformGrid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DockPanel>
+                    
+                </Grid>
+            </Border>
+            
+        </Grid>
+    </Viewbox>
+
+</Window>
