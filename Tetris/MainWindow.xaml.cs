@@ -23,6 +23,7 @@ namespace Tetris
         // ці змінні можна було б перемістити у клас GameMain
         private bool paused = true;
         private bool leaved = false;
+        private bool windowActivated = true;
 
         // якщо true на екрані буде top Score таблиця, якщо false top Line таблиця
         private bool isScoreTable = true;
@@ -321,7 +322,12 @@ namespace Tetris
             }
             CountDownText.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Collapsed;
+            PauseButton.Visibility = Visibility.Visible;
             paused = false;
+            if (!windowActivated)
+            {
+                PauseGame();
+            }
         }
 
         private async Task RunGame()
@@ -421,7 +427,6 @@ namespace Tetris
         {
             DrawBufferFigure();
             await ShowCountDown();
-            PauseButton.Visibility = Visibility.Visible;
             Game.AddFigure();
             DrawBufferFigure();
             await GameLoop();
@@ -461,7 +466,33 @@ namespace Tetris
             MainMenuBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
             await ShowCountDown();
-            PauseButton.Visibility = Visibility.Visible;
+        }
+
+        private void Window_Activated(object sender, EventArgs e)
+        {
+            windowActivated = true;
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            windowActivated = false;
+            if (PauseButton.Visibility == Visibility.Visible)
+            {
+                PauseGame();
+            }
+        }
+
+        private void Pause_Click(object sender, RoutedEventArgs e)
+        {
+            PauseGame();
+        }
+
+        private void PauseGame()
+        {
+            paused = true;
+            PauseButton.Visibility = Visibility.Collapsed;
+            MenuBorder.Visibility = Visibility.Visible;
+            MainMenuBorder.Visibility = Visibility.Visible;
         }
 
         private void HighScores_Click(object sender, RoutedEventArgs e)
@@ -511,15 +542,5 @@ namespace Tetris
             Game = new GameMain(rows, cols);
             DrawGrid();
         }
-
-        private void Pause_Click(object sender, RoutedEventArgs e)
-        {
-            paused = true;
-            PauseButton.Visibility = Visibility.Collapsed;
-            MenuBorder.Visibility = Visibility.Visible;
-            MainMenuBorder.Visibility = Visibility.Visible;
-        }
-
-
     }
 }

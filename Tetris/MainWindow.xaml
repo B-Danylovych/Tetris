@@ -10,6 +10,8 @@
         WindowStartupLocation="CenterScreen"
         KeyDown="Window_KeyDown"
         KeyUp="Window_KeyUp"
+        Deactivated="Window_Deactivated"
+        Activated="Window_Activated"
         Background="{StaticResource WindowBackground}">
     
     <Window.Resources>
