@@ -34,4 +34,13 @@
     <Resource Include="Images\Z_Green.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TxtFiles\TopLines.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="TxtFiles\TopScores.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
