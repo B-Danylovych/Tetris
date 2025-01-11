@@ -33,8 +33,8 @@ namespace Tetris
         private readonly TextBlock[] menuLinesTable;
         private readonly TextBlock[] menuScoreTable;
 
-        string topScoresPath = "TopScores.txt";
-        string topLinesPath = "TopLines.txt";
+        string topScoresPath = "TxtFiles/TopScores.txt";
+        string topLinesPath = "TxtFiles/TopLines.txt";
 
         private bool leftIsPressed = false;
         private bool rightIsPressed = false;
