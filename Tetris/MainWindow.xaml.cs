@@ -452,6 +452,8 @@ namespace Tetris
             if (Game.isGameOver)
             {
                 NewTopScores();
+                GameOverScoreNum.Text = Game.Score.ToString();
+                GameOverLineNum.Text = Game.Line.ToString();
                 PauseButton.Visibility = Visibility.Collapsed;
                 MenuBorder.Visibility = Visibility.Visible;
                 GameOverBorder.Visibility = Visibility.Visible;

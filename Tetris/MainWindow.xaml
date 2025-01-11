@@ -350,6 +350,7 @@
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Bottom"/>
                                         <TextBlock Text="0"
+                                                   x:Name="GameOverScoreNum"
                                                        FontSize="25"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center"
@@ -364,6 +365,7 @@
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Bottom"/>
                                         <TextBlock Text="0"
+                                                   x:Name="GameOverLineNum"
                                                        FontSize="25"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center"
