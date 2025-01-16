@@ -67,33 +67,33 @@ namespace Tetris
             CurrentFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight).Select(i => this.Rows - 1 - i).ToArray();
             CurrentFigure.ColumnIndexOnGrid = Enumerable.Range(0, figureWidth).Select(i => (this.Cols / 2 - figureWidth / 2) + i).ToArray();
 
-            ProjectedFigure = CheckFallDown();
+            ProjectedFigure = CheckFallDown(CurrentFigure);
             AddFigureInBuffer();
         }
 
-        private Figure CheckFallDown()
+        private Figure CheckFallDown(Figure curFigure)
         {
             List<int> projFall = new();
             int highestProjectionOfTiles;
-            Figure projectedFigure = CurrentFigure.Clone();
+            Figure projectedFigure = curFigure.Clone();
 
-            int figureWidth = CurrentFigure.ColumnCount;
-            int figureHeight = CurrentFigure.RowCount;
+            int figureWidth = curFigure.ColumnCount;
+            int figureHeight = curFigure.RowCount;
 
             for (int c = 0; c < figureWidth; c++)
             {
                 for (int r = figureHeight - 1; r >= 0; r--)
                 {
-                    if (CurrentFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
                     {
-                        for (int i = CurrentFigure.RowIndexOnGrid[r]; i >= 0; i--)
+                        for (int i = curFigure.RowIndexOnGrid[r]; i >= 0; i--)
                         {
                             if (i == 0)
                             {
                                 projFall.Add(i + r);
                                 break;
                             }
-                            if (Grid[i - 1][CurrentFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
+                            if (Grid[i - 1][curFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
                             {
                                 projFall.Add(i + r);
                                 break;
@@ -107,7 +107,7 @@ namespace Tetris
             highestProjectionOfTiles = projFall.Max();
 
             projectedFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight).Select(i => highestProjectionOfTiles - i).ToArray();
-            projectedFigure.ColumnIndexOnGrid = (int[])CurrentFigure.ColumnIndexOnGrid.Clone();
+            projectedFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
 
             return projectedFigure;
         }
@@ -206,7 +206,7 @@ namespace Tetris
                 CurrentFigure.ColumnIndexOnGrid[c]--;
             }
 
-            ProjectedFigure = CheckFallDown();
+            ProjectedFigure = CheckFallDown(CurrentFigure);
             return true;
         }
 
@@ -246,7 +246,7 @@ namespace Tetris
                 CurrentFigure.ColumnIndexOnGrid[c]++;
             }
 
-            ProjectedFigure = CheckFallDown();
+            ProjectedFigure = CheckFallDown(CurrentFigure);
             return true;
         }
 
@@ -304,7 +304,7 @@ namespace Tetris
 
             CurrentFigure.SetNewDirection(newDir);
 
-            ProjectedFigure = CheckFallDown();
+            ProjectedFigure = CheckFallDown(CurrentFigure);
         }
 
         public void checkGameOver()
