@@ -164,28 +164,28 @@ namespace Tetris
                     r--;
                 }
             }
-            // 10*10 = 100, 20*20=200, 30*30 = 900, 40*40+400=1600+400=2000
+            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
             int addScore = (LinesRemoved < 4) ? (int)Math.Pow(LinesRemoved * 10, 2) : (int)Math.Pow(LinesRemoved * 10, 2) + 400;
             this.Score += addScore;
             this.Line += LinesRemoved;
         }
 
-        private bool CanMoveLeft()
+        private bool CanMoveLeft(Figure curFigure)
         {
-            int figureWidth = CurrentFigure.ColumnCount;
-            int figureHeight = CurrentFigure.RowCount;
+            int figureWidth = curFigure.ColumnCount;
+            int figureHeight = curFigure.RowCount;
 
             for (int r = 0; r < figureHeight; r++)
             {
                 for (int c = 0; c < figureWidth; c++)
                 {
-                    if (CurrentFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
                     {
-                        if (CurrentFigure.ColumnIndexOnGrid[c] == 0)
+                        if (curFigure.ColumnIndexOnGrid[c] == 0)
                         {
                             return false;
                         }
-                        if (Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
+                        if (Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -198,7 +198,7 @@ namespace Tetris
 
         public bool MoveLeft()
         {
-            if (!CanMoveLeft())
+            if (!CanMoveLeft(CurrentFigure))
                 return false;
 
             for (int c = 0; c < CurrentFigure.ColumnCount; c++)
@@ -210,22 +210,22 @@ namespace Tetris
             return true;
         }
 
-        private bool CanMoveRight()
+        private bool CanMoveRight(Figure curFigure)
         {
-            int figureWidth = CurrentFigure.ColumnCount;
-            int figureHeight = CurrentFigure.RowCount;
+            int figureWidth = curFigure.ColumnCount;
+            int figureHeight = curFigure.RowCount;
 
             for (int r = 0; r < figureHeight; r++)
             {
                 for (int c = figureWidth - 1; c >= 0; c--)
                 {
-                    if (CurrentFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
                     {
-                        if (CurrentFigure.ColumnIndexOnGrid[c] == Cols - 1)
+                        if (curFigure.ColumnIndexOnGrid[c] == Cols - 1)
                         {
                             return false;
                         }
-                        if (Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
+                        if (Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -238,7 +238,7 @@ namespace Tetris
 
         public bool MoveRight()
         {
-            if (!CanMoveRight())
+            if (!CanMoveRight(CurrentFigure))
                 return false;
 
             for (int c = 0; c < CurrentFigure.ColumnCount; c++)
@@ -261,16 +261,15 @@ namespace Tetris
                 return (Dir_Rotation)(((int)currentDirection == 0) ? (enumSize - 1) : (int)currentDirection - 1);
         }
 
-        private bool CanRotate(bool isClockwise)
+        private bool CanRotate(bool isClockwise, Figure curFigure)
         {
-            Figure rotationFigure = CurrentFigure.Clone();
-            rotationFigure.RowIndexOnGrid = (int[])CurrentFigure.RowIndexOnGrid.Clone();
-            rotationFigure.ColumnIndexOnGrid = (int[])CurrentFigure.ColumnIndexOnGrid.Clone();
+            Figure rotationFigure = curFigure.Clone();
+            rotationFigure.RowIndexOnGrid = (int[])curFigure.RowIndexOnGrid.Clone();
+            rotationFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
 
             Dir_Rotation newDir = GetNewDirection(rotationFigure.Direction, isClockwise);
 
             rotationFigure.SetNewDirection(newDir);
-
 
             int figureWidth = rotationFigure.ColumnCount;
             int figureHeight = rotationFigure.RowCount;
@@ -291,13 +290,12 @@ namespace Tetris
                 }
             }
 
-
             return true;
         }
 
         public void Rotate(bool isClockwise)
         {
-            if (!CanRotate(isClockwise))
+            if (!CanRotate(isClockwise, CurrentFigure))
                 return;
 
             Dir_Rotation newDir = GetNewDirection(CurrentFigure.Direction, isClockwise);
