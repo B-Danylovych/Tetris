@@ -37,31 +37,17 @@ namespace Tetris
 
         public void SetNewDirection(Dir_Rotation dir)
         {
-            Direction = dir;
-            switch (figureType)
+            this.Direction = dir;
+            this.FigureValue = figureType switch
             {
-                case GridValue.I_Figure:
-                    this.FigureValue = I_Figure_Direction(Direction);
-                    break;
-                case GridValue.O_Figure:
-                    this.FigureValue = O_Figure_Direction();
-                    break;
-                case GridValue.T_Figure:
-                    this.FigureValue = T_Figure_Direction(Direction);
-                    break;
-                case GridValue.L_Figure:
-                    this.FigureValue = L_Figure_Direction(Direction);
-                    break;
-                case GridValue.J_Figure:
-                    this.FigureValue = J_Figure_Direction(Direction);
-                    break;
-                case GridValue.Z_Figure:
-                    this.FigureValue = Z_Figure_Direction(Direction);
-                    break;
-                case GridValue.S_Figure:
-                    this.FigureValue = S_Figure_Direction(Direction);
-                    break;
-            }
+                GridValue.I_Figure => I_Figure_Direction(Direction),
+                GridValue.O_Figure => O_Figure_Direction(),
+                GridValue.T_Figure => T_Figure_Direction(Direction),
+                GridValue.L_Figure => L_Figure_Direction(Direction),
+                GridValue.J_Figure => J_Figure_Direction(Direction),
+                GridValue.Z_Figure => Z_Figure_Direction(Direction),
+                GridValue.S_Figure => S_Figure_Direction(Direction)
+            };
         }
 
         private GridValue[,] O_Figure_Direction()

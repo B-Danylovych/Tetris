@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Tetris
 {
-        public enum GridValue
+    public enum GridValue
     {
         Empty,
         I_Figure,
