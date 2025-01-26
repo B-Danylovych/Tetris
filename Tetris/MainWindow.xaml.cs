@@ -20,7 +20,6 @@ namespace Tetris
         private readonly Image[,] gridImages;
         GameMain Game;
 
-        // ці змінні можна було б перемістити у клас GameMain
         private bool paused = true;
         private bool leaved = false;
         private bool windowActivated = true;
@@ -299,7 +298,7 @@ namespace Tetris
                     break;
                 case Key.S:
                 case Key.Down:
-                    Game.iterationTick = 50;
+                    Game.IterationTick = 50;
                     break;
                 case Key.W:
                 case Key.Up:
@@ -319,7 +318,7 @@ namespace Tetris
             {
                 case Key.S:
                 case Key.Down:
-                    Game.iterationTick = 500;
+                    Game.IterationTick = 500;
                     break;
                 case Key.A:
                 case Key.Left:
@@ -349,44 +348,9 @@ namespace Tetris
             }
         }
 
-        private async Task RunGame()
-        {
-            await Task.Delay(Game.iterationTick);
-
-            if (paused)
-                return;
-
-            bool canMoveDown = Game.MoveDown();
-            if (!canMoveDown)
-            {
-                await Task.Delay(Game.lockDelayTick);
-                canMoveDown = Game.MoveDown();
-                if (!canMoveDown)
-                {
-                    Game.AddFigureTilesOnGrid();
-                    Game.RemoveLines();
-                    Game.checkGameOver();
-                    if (Game.isGameOver)
-                        return;
-                    Game.AddFigure();
-                    DrawBufferFigure();
-                    if (Game.iterationTick > 20)
-                        Game.iterationTick--;
-
-                    if (Game.lockDelayTick > 100)
-                        Game.lockDelayTick--;
-
-                    ScoreTextBlock.Text = $"Score: {Game.Score}";
-                    LineTextBlock.Text = $"Lines: {Game.Line}";
-                }
-            }
-
-            Draw();
-        }
-
         private async Task GameLoop()
         {
-            while (!Game.isGameOver)
+            while (!Game.IsGameOver)
             {
                 if (paused)
                 {
@@ -403,20 +367,55 @@ namespace Tetris
             }
         }
 
+        private async Task RunGame()
+        {
+            await Task.Delay(Game.IterationTick);
+
+            if (paused)
+                return;
+
+            bool canMoveDown = Game.MoveDown();
+            if (!canMoveDown)
+            {
+                await Task.Delay(Game.LockDelayTick);
+                canMoveDown = Game.MoveDown();
+                if (!canMoveDown)
+                {
+                    Game.AddFigureTilesOnGrid();
+                    Game.RemoveLines();
+                    Game.checkGameOver();
+                    if (Game.IsGameOver)
+                        return;
+                    Game.AddFigure();
+                    DrawBufferFigure();
+                    if (Game.IterationTick > 20)
+                        Game.IterationTick--;
+
+                    if (Game.LockDelayTick > 100)
+                        Game.LockDelayTick--;
+
+                    ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
+                    LineTextBlock.Text = $"Lines: {Game.LinesNum}";
+                }
+            }
+
+            Draw();
+        }
+
         private void NewTopScores()
         {
             List<int> txtDataScore = ReadTxtFile(topScoresPath, true).ConvertAll(int.Parse);
             List<int> txtDataLines = ReadTxtFile(topLinesPath, false).ConvertAll(int.Parse);
 
-            if (Game.Score > txtDataScore.Last())
+            if (Game.ScoreNum > txtDataScore.Last())
             {
-                txtDataScore[txtDataScore.Count - 1] = Game.Score;
+                txtDataScore[txtDataScore.Count - 1] = Game.ScoreNum;
                 txtDataScore.Sort();
                 txtDataScore.Reverse();
             }
-            if (Game.Line > txtDataLines.Last())
+            if (Game.LinesNum > txtDataLines.Last())
             {
-                txtDataLines[txtDataLines.Count - 1] = Game.Line;
+                txtDataLines[txtDataLines.Count - 1] = Game.LinesNum;
                 txtDataLines.Sort();
                 txtDataLines.Reverse();
             }
@@ -449,11 +448,11 @@ namespace Tetris
             Game.AddFigure();
             DrawBufferFigure();
             await GameLoop();
-            if (Game.isGameOver)
+            if (Game.IsGameOver)
             {
                 NewTopScores();
-                GameOverScoreNum.Text = Game.Score.ToString();
-                GameOverLineNum.Text = Game.Line.ToString();
+                GameOverScoreNum.Text = Game.ScoreNum.ToString();
+                GameOverLineNum.Text = Game.LinesNum.ToString();
                 PauseButton.Visibility = Visibility.Collapsed;
                 MenuBorder.Visibility = Visibility.Visible;
                 GameOverBorder.Visibility = Visibility.Visible;

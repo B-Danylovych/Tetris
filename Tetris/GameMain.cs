@@ -13,19 +13,46 @@ namespace Tetris
     {
         public int Rows { get; }
         public int Cols { get; }
-        public int HiddenRowOnTop = 2;
+        private readonly int HiddenRowOnTop = 2;
+
         public List<List<GridValue>> Grid { get; private set; }
 
-        public int lockDelayTick = 500;
-        public int iterationTick = 500;
+        private int _lockDelayTick = 500;
+        private int _iterationTick = 500;
 
-        public int Score { get; private set; }
-        public int Line { get; private set; }
-        public bool isGameOver { get; private set; }
+        public int LockDelayTick
+        {
+            get => _lockDelayTick;
+            set
+            {
+                if (value > 0)
+                    _lockDelayTick = value;
+                else
+                    throw new ArgumentException("LockDelayTick must be a positive number");
+            }
+        }
+
+        public int IterationTick
+        {
+            get => _iterationTick;
+            set
+            {
+                if (value > 0)
+                    _iterationTick = value;
+                else
+                    throw new ArgumentException("IterationTick must be a positive number");
+            }
+        }
+
+        public int ScoreNum { get; private set; }
+        public int LinesNum { get; private set; }
+
+        public bool IsGameOver { get; private set; }
+
         private readonly Random random = new Random();
+
         public Figure BufferFigure { get; private set; }
         public Figure CurrentFigure { get; private set; }
-
         public Figure ProjectedFigure { get; private set; }
 
         public GameMain(int rows, int cols)
@@ -35,6 +62,12 @@ namespace Tetris
             Grid = Enumerable.Range(0, Rows).Select(i => Enumerable.Repeat(GridValue.Empty, Cols).ToList()).ToList();
 
             AddFigureInBuffer();
+        }
+
+        private void AddFigureInBuffer()
+        {
+            GridValue typeFigure = GetRandomGridValue();
+            BufferFigure = new Figure(typeFigure, Dir_Rotation.Up);
         }
 
         public GridValue GetRandomGridValue()
@@ -50,13 +83,6 @@ namespace Tetris
             return randomValue;
         }
 
-
-        private void AddFigureInBuffer()
-        {
-            GridValue typeFigure = GetRandomGridValue();
-            BufferFigure = new Figure(typeFigure, Dir_Rotation.Up);
-        }
-
         public void AddFigure()
         {
             CurrentFigure = BufferFigure.Clone();
@@ -64,8 +90,10 @@ namespace Tetris
             int figureWidth = CurrentFigure.ColumnCount;
             int figureHeight = CurrentFigure.RowCount;
 
-            CurrentFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight).Select(i => this.Rows - 1 - i).ToArray();
-            CurrentFigure.ColumnIndexOnGrid = Enumerable.Range(0, figureWidth).Select(i => (this.Cols / 2 - figureWidth / 2) + i).ToArray();
+            CurrentFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight)
+                .Select(i => this.Rows - 1 - i).ToArray();
+            CurrentFigure.ColumnIndexOnGrid = Enumerable.Range(0, figureWidth)
+                .Select(i => (this.Cols / 2 - figureWidth / 2) + i).ToArray();
 
             ProjectedFigure = CheckFallDown(CurrentFigure);
             AddFigureInBuffer();
@@ -88,12 +116,7 @@ namespace Tetris
                     {
                         for (int i = curFigure.RowIndexOnGrid[r]; i >= 0; i--)
                         {
-                            if (i == 0)
-                            {
-                                projFall.Add(i + r);
-                                break;
-                            }
-                            if (Grid[i - 1][curFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
+                            if (i == 0 || Grid[i - 1][curFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
                             {
                                 projFall.Add(i + r);
                                 break;
@@ -144,7 +167,7 @@ namespace Tetris
 
         public void RemoveLines()
         {
-            int LinesRemoved = 0;
+            int linesRemoved = 0;
             for (int r = 0; r < Grid.Count - HiddenRowOnTop; r++)
             {
                 bool isFull = true;
@@ -160,14 +183,14 @@ namespace Tetris
                 {
                     Grid.RemoveAt(r);
                     Grid.Add(Enumerable.Repeat(GridValue.Empty, Cols).ToList());
-                    LinesRemoved++;
+                    linesRemoved++;
                     r--;
                 }
             }
             // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
-            int addScore = (LinesRemoved < 4) ? (int)Math.Pow(LinesRemoved * 10, 2) : (int)Math.Pow(LinesRemoved * 10, 2) + 400;
-            this.Score += addScore;
-            this.Line += LinesRemoved;
+            int addScore = (linesRemoved < 4) ? (int)Math.Pow(linesRemoved * 10, 2) : (int)Math.Pow(linesRemoved * 10, 2) + 400;
+            this.ScoreNum += addScore;
+            this.LinesNum += linesRemoved;
         }
 
         private bool CanMoveLeft(Figure curFigure)
@@ -181,11 +204,8 @@ namespace Tetris
                 {
                     if (curFigure.FigureValue[r, c] != GridValue.Empty)
                     {
-                        if (curFigure.ColumnIndexOnGrid[c] == 0)
-                        {
-                            return false;
-                        }
-                        if (Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
+                        if (curFigure.ColumnIndexOnGrid[c] == 0 || 
+                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -221,11 +241,8 @@ namespace Tetris
                 {
                     if (curFigure.FigureValue[r, c] != GridValue.Empty)
                     {
-                        if (curFigure.ColumnIndexOnGrid[c] == Cols - 1)
-                        {
-                            return false;
-                        }
-                        if (Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
+                        if (curFigure.ColumnIndexOnGrid[c] == Cols - 1 || 
+                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -310,9 +327,7 @@ namespace Tetris
             for (int c = 0; c < Cols; c++)
             {
                 if (Grid[Rows - HiddenRowOnTop][c] != GridValue.Empty)
-                {
-                    isGameOver = true;
-                }
+                    IsGameOver = true;
             }
         }
     }
