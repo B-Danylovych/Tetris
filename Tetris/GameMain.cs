@@ -15,7 +15,7 @@ namespace Tetris
         public int Cols { get; }
         private readonly int HiddenRowOnTop = 2;
 
-        public List<List<GridValue>> Grid { get; private set; }
+        public List<List<GridValue>> Grid { get; protected set; }
 
         private int _lockDelayTick = 500;
         private int _iterationTick = 500;
@@ -51,9 +51,9 @@ namespace Tetris
 
         private readonly Random random = new Random();
 
-        public Figure BufferFigure { get; private set; }
-        public Figure CurrentFigure { get; private set; }
-        public Figure ProjectedFigure { get; private set; }
+        public Figure BufferFigure { get; protected set; }
+        public Figure CurrentFigure { get; protected set; }
+        public Figure ProjectedFigure { get; protected set; }
 
         public GameMain(int rows, int cols)
         {
