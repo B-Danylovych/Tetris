@@ -340,7 +340,7 @@ namespace Tetris
             }
             CountDownText.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Collapsed;
-            PauseButton.Visibility = Visibility.Visible;
+            Pause_AI_Grid.Visibility = Visibility.Visible;
             paused = false;
             if (!windowActivated)
             {
@@ -453,7 +453,7 @@ namespace Tetris
                 NewTopScores();
                 GameOverScoreNum.Text = Game.ScoreNum.ToString();
                 GameOverLineNum.Text = Game.LinesNum.ToString();
-                PauseButton.Visibility = Visibility.Collapsed;
+                Pause_AI_Grid.Visibility = Visibility.Collapsed;
                 MenuBorder.Visibility = Visibility.Visible;
                 GameOverBorder.Visibility = Visibility.Visible;
             }
@@ -496,7 +496,7 @@ namespace Tetris
         private void Window_Deactivated(object sender, EventArgs e)
         {
             windowActivated = false;
-            if (PauseButton.Visibility == Visibility.Visible)
+            if (Pause_AI_Grid.Visibility == Visibility.Visible)
             {
                 PauseGame();
             }
@@ -510,7 +510,7 @@ namespace Tetris
         private void PauseGame()
         {
             paused = true;
-            PauseButton.Visibility = Visibility.Collapsed;
+            Pause_AI_Grid.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Visible;
             MainMenuBorder.Visibility = Visibility.Visible;
         }
@@ -550,6 +550,11 @@ namespace Tetris
         {
             QuitMenuBorder.Visibility = Visibility.Collapsed;
             MainMenuBorder.Visibility = Visibility.Visible;
+        }
+
+        private void AI_Button_Click(object sender, RoutedEventArgs e)
+        {
+
         }
 
         private void HomeButton_Click(object sender, RoutedEventArgs e)

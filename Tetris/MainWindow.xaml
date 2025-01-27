@@ -13,7 +13,7 @@
         Deactivated="Window_Deactivated"
         Activated="Window_Activated"
         Background="{StaticResource WindowBackground}">
-    
+
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#35146b"/>
@@ -38,7 +38,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button" x:Key="ArrowsButtonStyle">
+        <Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button" x:Key="Left-RoundedButtonStyle">
             <Setter Property="BorderThickness" Value="2,2,0,2"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -46,7 +46,22 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5, 0, 0, 5">   
+                                CornerRadius="5, 0, 0, 5">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style BasedOn="{StaticResource {x:Type Button}}" TargetType="Button" x:Key="Right-RoundedButtonStyle">
+            <Setter Property="BorderThickness" Value="0,2,2,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="0, 5, 5, 0">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -54,7 +69,7 @@
             </Setter>
         </Style>
     </Window.Resources>
-    
+
     <Viewbox>
         <Grid>
             <Border x:Name="GameBorder"
@@ -128,15 +143,32 @@
                                                 FontWeight="bold"/>
                                 </UniformGrid>
                             </Border>
-                        
-                            <Button x:Name="PauseButton"
-                                    Visibility="Collapsed"
-                                    Content="PAUSE"
-                                    FontSize="30"
-                                    Margin="20"
+
+                            <Grid   x:Name="Pause_AI_Grid"
                                     Grid.Row="2"
-                                    Click="Pause_Click"/>                            
-                        
+                                    Margin="20"
+                                    Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="0.7*"/>
+                                    <ColumnDefinition Width="0.3*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="PauseButton"
+                                        Grid.Column="0"
+                                        Content="PAUSE"
+                                        Style="{StaticResource Left-RoundedButtonStyle}"
+                                        BorderThickness="2,2,1,2"
+                                        FontSize="30"
+                                        Click="Pause_Click"/>
+                                <Button x:Name="AI_Button"
+                                        Grid.Column="1"
+                                        Content="AI"
+                                        Style="{StaticResource Right-RoundedButtonStyle}"
+                                        BorderThickness="1,2,2,2"
+                                        FontSize="30"
+                                        Click="AI_Button_Click"/>
+                            </Grid>
+
+
                         </Grid>
                     </Border>
 
@@ -146,13 +178,13 @@
                     Visibility="Visible"
                     Background="{StaticResource OverlayColor}">
                 <Grid>
-                    
+
                     <TextBlock  x:Name="CountDownText"
                                 FontSize="100"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Visibility="Visible"/>
-                    
+
                     <Border x:Name="MainMenuBorder"
                             Margin="100"
                             Background="{StaticResource MenuBackground}"
@@ -192,7 +224,7 @@
                                     Click="OkQuit_Click"/>
                             <Button Content="CANCEL"
                                     Margin="20, 0, 20, 20"
-                                    Click="CancelQuit_Click"/>           
+                                    Click="CancelQuit_Click"/>
                         </UniformGrid>
                     </Border>
 
@@ -218,7 +250,7 @@
                                         FontWeight="Bold"
                                         Click="Done_Click"/>
                             </Border>
-                            
+
                             <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -253,7 +285,7 @@
                                                 <Border Background="{StaticResource DarkPartTable}"/>
                                                 <Border Background="{StaticResource LightPartTable}"/>
                                                 <Border Background="{StaticResource DarkPartTable}"/>
-                                            </UniformGrid>  
+                                            </UniformGrid>
                                         </Border>
 
                                     </Grid>
@@ -316,10 +348,10 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            FontSize="50"
-                                           FontWeight="Bold"/>      
+                                           FontWeight="Bold"/>
                             </Border>
-                            
-                            
+
+
                             <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -377,7 +409,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        
+
                                         <Button Grid.Column="0"
                                                 Width="40" 
                                                 HorizontalAlignment="Right"
@@ -390,13 +422,13 @@
                                                 Width="40" 
                                                 HorizontalAlignment="Right"
                                                 Margin="1,1,0,1"
-                                                Style="{StaticResource ArrowsButtonStyle}"
-                                                Click="ArrowsButton_Click">            
+                                                Style="{StaticResource Left-RoundedButtonStyle}"
+                                                Click="ArrowsButton_Click">
                                             <Image Source="Images/Arrows.png"/>
                                         </Button>
 
                                     </Grid>
-                                    
+
                                 </Grid>
 
                                 <Border Grid.Column="1"
@@ -429,7 +461,7 @@
                                                 <Border Background="{StaticResource DarkPartTable}"/>
                                             </UniformGrid>
                                         </Border>
-                                    </Grid> 
+                                    </Grid>
                                 </Border>
                             </Grid>
                         </Grid>
@@ -456,11 +488,11 @@
 
                     <DockPanel  Grid.Row="1" 
                                 Margin="40, 0, 80, 30">
-                        
+
                         <Button Width="40" 
                                 Margin="1,1,0,1"
                                 VerticalAlignment="Center"
-                                Style="{StaticResource ArrowsButtonStyle}"
+                                Style="{StaticResource Left-RoundedButtonStyle}"
                                 Click="ArrowsButton_Click">
                             <Image Source="Images/Arrows.png"/>
                         </Button>
@@ -499,10 +531,10 @@
                             </Grid>
                         </Border>
                     </DockPanel>
-                    
+
                 </Grid>
             </Border>
-            
+
         </Grid>
     </Viewbox>
 
