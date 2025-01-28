@@ -53,12 +53,71 @@ namespace Tetris
         private FigureMoveOption GetCurrentPositionMoveOption()
         {
             return new FigureMoveOption(ProjectedFigure,
-                CurrentFigure.ColumnIndexOnGrid[0], CalculateMoveOption(ProjectedFigure));
+                CurrentFigure.ColumnIndexOnGrid[0], CalculateMoveOptionScore(ProjectedFigure));
         }
 
-        public int CalculateMoveOption(Figure projectedFigure)
+        public int CalculateMoveOptionScore(Figure projFig)
         {
+            int score = 0;
 
+            score += CalculateHighFigureScore(projFig);
+
+            int[] fullLinesIndices = CalculateFullLines(projFig);
+            score -= fullLinesIndices.Length * 2;
+
+            return score;
+        }
+
+        private int CalculateHighFigureScore(Figure projFig)
+        {
+            for (int r = 0; r < projFig.RowCount; r++)
+            {
+                for (int c = 0; c < projFig.ColumnCount; c++)
+                {
+                    if (projFig.FigureValue[r, c] != GridValue.Empty)
+                        return (projFig.RowIndexOnGrid[0] + r);
+                }
+            }
+            throw new InvalidOperationException("The projectedFigure is empty.");
+        }
+
+        //private int CalculateGapsFigureScore(Figure projFig, int[] fullLinesIndices)
+        //{
+
+        //}
+
+        private int[] CalculateFullLines(Figure projFig)
+        {
+            LinkedList<int> fullLines = new LinkedList<int>();
+            for (int r = 0; r < projFig.RowIndexOnGrid.Length; r++)
+            {
+                bool isFull = true;
+                for (int c = 0; c < Grid[projFig.RowIndexOnGrid[r]].Count; c++)
+                {
+                    if (Grid[projFig.RowIndexOnGrid[r]][c] == GridValue.Empty)
+                    {
+                        if (c >= projFig.ColumnIndexOnGrid[0] &&
+                        c <= projFig.ColumnIndexOnGrid[projFig.ColumnIndexOnGrid.Length - 1])
+                        {
+                            if (projFig.FigureValue[r,
+                                c - projFig.ColumnIndexOnGrid[0]] == GridValue.Empty)
+                            {
+                                isFull = false;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            isFull = false;
+                            break;
+                        }
+                    }
+                }
+                if (isFull)
+                    fullLines.AddLast(projFig.RowIndexOnGrid[r]);
+            }
+
+            return fullLines.ToArray();
         }
     }
 }
