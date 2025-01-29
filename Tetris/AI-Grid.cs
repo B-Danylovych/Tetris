@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.DirectoryServices.ActiveDirectory;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Shapes;
 
 namespace Tetris
 {
@@ -81,10 +84,85 @@ namespace Tetris
             throw new InvalidOperationException("The projectedFigure is empty.");
         }
 
-        //private int CalculateGapsFigureScore(Figure projFig, int[] fullLinesIndices)
-        //{
+        private Tuple<int[], int>[] GetGaps(Figure projFig, int[] fullLinesIndices)
+        {
+            List<Tuple<int[],int>> gaps = new List<Tuple<int[], int>>();
 
+            int[][] tiles = GetLowestNotFromFullLinesTiles(projFig, fullLinesIndices);
+
+            foreach (int[] tile in tiles)
+            {
+                List<int> gapsInThisRow = new List<int>();
+                for (int r = tile[0] - 1; r >= 0; r--)
+                {
+                    bool isFromFullLine = false;
+                    foreach (int item in fullLinesIndices)
+                    {
+                        if (r == item)
+                        {
+                            isFromFullLine = true;
+                            break;
+                        }
+                    }
+
+                    if (!isFromFullLine && Grid[r][tile[1]] == GridValue.Empty)
+                    {
+                        gapsInThisRow.Add(r);
+                    }
+                }
+                gaps.Add(Tuple.Create(gapsInThisRow.ToArray(), tile[1]));
+            }
+
+            return gaps.ToArray();
+        }
+
+        //private void DivideGapsIntoFullAndPartial(Figure projFig, int[] fullLinesIndices, 
+        //    Tuple<int[], int>[] gaps)
+        //{
+        //    for (int i = 0; i < gaps.Length; i++)
+        //    {
+        //        GridValue[] valuesOfColumn = new GridValue[Grid.Count];
+        //        for (int r = 0; r < Grid.Count; r++)
+        //        {
+        //            valuesOfColumn[r] = Grid[r][gaps[i].Item2];
+        //        }
+
+        //    }
         //}
+
+        private int[][] GetLowestNotFromFullLinesTiles(Figure projFig, int[] fullLinesIndices)
+        {
+            List<int[]> lowestNotFromFullLinesTiles = new List<int[]>();
+
+            for (int c = 0; c < projFig.ColumnCount; c++)
+            {
+                for (int r = projFig.RowCount - 1; r >= 0; r--)
+                {
+                    if (projFig.FigureValue[r, c] != GridValue.Empty)
+                    {
+                        bool isFromFullLine = false;
+                        foreach (int item in fullLinesIndices)
+                        {
+                            if (projFig.RowIndexOnGrid[r] == item)
+                            {
+                                isFromFullLine = true;
+                                break;
+                            }
+                        }
+                        if (isFromFullLine)
+                            continue;
+                        else
+                        {
+                            lowestNotFromFullLinesTiles.Add
+                                (new int[2] { projFig.RowIndexOnGrid[r], projFig.ColumnIndexOnGrid[c] });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return lowestNotFromFullLinesTiles.ToArray();
+        }
 
         private int[] CalculateFullLines(Figure projFig)
         {
