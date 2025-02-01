@@ -11,9 +11,9 @@ namespace Tetris
 {
     public class AI_Grid : GameMain
     {
-        public List<FigureMoveOption> FigureMoveOptions { get; private set; }
-            = new List<FigureMoveOption>();
-        public AI_Grid(int rows, int cols, Figure bufferFigure, Figure currentFigure, Figure projectedFigure, List<List<GridValue>> grid) : base(rows, cols)
+        public List<ShapeMoveOption> FigureMoveOptions { get; private set; }
+            = new List<ShapeMoveOption>();
+        public AI_Grid(int rows, int cols, Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid) : base(rows, cols)
         {
             BufferFigure = setFigureClone(bufferFigure);
             CurrentFigure = setFigureClone(currentFigure);
@@ -21,7 +21,7 @@ namespace Tetris
             Grid = new List<List<GridValue>>(grid);
         }
 
-        public Figure setFigureClone(Figure cloneFigure)
+        public Shape setFigureClone(Shape cloneFigure)
         {
             return cloneFigure.Clone();
         }
@@ -53,13 +53,13 @@ namespace Tetris
             }
         }
 
-        private FigureMoveOption GetCurrentPositionMoveOption()
+        private ShapeMoveOption GetCurrentPositionMoveOption()
         {
-            return new FigureMoveOption(ProjectedFigure,
+            return new ShapeMoveOption(ProjectedFigure,
                 CurrentFigure.ColumnIndexOnGrid[0], CalculateMoveOptionScore(ProjectedFigure));
         }
 
-        public int CalculateMoveOptionScore(Figure projFig)
+        public int CalculateMoveOptionScore(Shape projFig)
         {
             int score = 0;
 
@@ -71,20 +71,20 @@ namespace Tetris
             return score;
         }
 
-        private int CalculateHighFigureScore(Figure projFig)
+        private int CalculateHighFigureScore(Shape projFig)
         {
             for (int r = 0; r < projFig.RowCount; r++)
             {
                 for (int c = 0; c < projFig.ColumnCount; c++)
                 {
-                    if (projFig.FigureValue[r, c] != GridValue.Empty)
+                    if (projFig.ShapeValue[r, c] != GridValue.Empty)
                         return (projFig.RowIndexOnGrid[0] + r);
                 }
             }
             throw new InvalidOperationException("The projectedFigure is empty.");
         }
 
-        private Tuple<int[], int>[] GetGaps(Figure projFig, int[] fullLinesIndices)
+        private Tuple<int[], int>[] GetGaps(Shape projFig, int[] fullLinesIndices)
         {
             List<Tuple<int[],int>> gaps = new List<Tuple<int[], int>>();
 
@@ -130,7 +130,7 @@ namespace Tetris
         //    }
         //}
 
-        private int[][] GetLowestNotFromFullLinesTiles(Figure projFig, int[] fullLinesIndices)
+        private int[][] GetLowestNotFromFullLinesTiles(Shape projFig, int[] fullLinesIndices)
         {
             List<int[]> lowestNotFromFullLinesTiles = new List<int[]>();
 
@@ -138,7 +138,7 @@ namespace Tetris
             {
                 for (int r = projFig.RowCount - 1; r >= 0; r--)
                 {
-                    if (projFig.FigureValue[r, c] != GridValue.Empty)
+                    if (projFig.ShapeValue[r, c] != GridValue.Empty)
                     {
                         bool isFromFullLine = false;
                         foreach (int item in fullLinesIndices)
@@ -164,7 +164,7 @@ namespace Tetris
             return lowestNotFromFullLinesTiles.ToArray();
         }
 
-        private int[] CalculateFullLines(Figure projFig)
+        private int[] CalculateFullLines(Shape projFig)
         {
             LinkedList<int> fullLines = new LinkedList<int>();
             for (int r = 0; r < projFig.RowIndexOnGrid.Length; r++)
@@ -177,7 +177,7 @@ namespace Tetris
                         if (c >= projFig.ColumnIndexOnGrid[0] &&
                         c <= projFig.ColumnIndexOnGrid[projFig.ColumnIndexOnGrid.Length - 1])
                         {
-                            if (projFig.FigureValue[r,
+                            if (projFig.ShapeValue[r,
                                 c - projFig.ColumnIndexOnGrid[0]] == GridValue.Empty)
                             {
                                 isFull = false;

@@ -51,9 +51,9 @@ namespace Tetris
 
         private readonly Random random = new Random();
 
-        public Figure BufferFigure { get; protected set; }
-        public Figure CurrentFigure { get; protected set; }
-        public Figure ProjectedFigure { get; protected set; }
+        public Shape BufferFigure { get; protected set; }
+        public Shape CurrentFigure { get; protected set; }
+        public Shape ProjectedFigure { get; protected set; }
 
         public GameMain(int rows, int cols)
         {
@@ -67,7 +67,7 @@ namespace Tetris
         private void AddFigureInBuffer()
         {
             GridValue typeFigure = GetRandomGridValue();
-            BufferFigure = new Figure(typeFigure, Dir_Rotation.Up);
+            BufferFigure = new Shape(typeFigure, Dir_Rotation.Up);
         }
 
         public GridValue GetRandomGridValue()
@@ -99,11 +99,11 @@ namespace Tetris
             AddFigureInBuffer();
         }
 
-        private Figure CheckFallDown(Figure curFigure)
+        private Shape CheckFallDown(Shape curFigure)
         {
             List<int> projFall = new();
             int highestProjectionOfTiles;
-            Figure projectedFigure = curFigure.Clone();
+            Shape projectedFigure = curFigure.Clone();
 
             int figureWidth = curFigure.ColumnCount;
             int figureHeight = curFigure.RowCount;
@@ -112,7 +112,7 @@ namespace Tetris
             {
                 for (int r = figureHeight - 1; r >= 0; r--)
                 {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
                     {
                         for (int i = curFigure.RowIndexOnGrid[r]; i >= 0; i--)
                         {
@@ -157,9 +157,9 @@ namespace Tetris
             {
                 for (int c = 0; c < CurrentFigure.ColumnCount; c++)
                 {
-                    if (CurrentFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (CurrentFigure.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c]] = CurrentFigure.FigureValue[r, c];
+                        Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c]] = CurrentFigure.ShapeValue[r, c];
                     }
                 }
             }
@@ -193,7 +193,7 @@ namespace Tetris
             this.LinesNum += linesRemoved;
         }
 
-        private bool CanMoveLeft(Figure curFigure)
+        private bool CanMoveLeft(Shape curFigure)
         {
             int figureWidth = curFigure.ColumnCount;
             int figureHeight = curFigure.RowCount;
@@ -202,7 +202,7 @@ namespace Tetris
             {
                 for (int c = 0; c < figureWidth; c++)
                 {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (curFigure.ColumnIndexOnGrid[c] == 0 || 
                             Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
@@ -230,7 +230,7 @@ namespace Tetris
             return true;
         }
 
-        private bool CanMoveRight(Figure curFigure)
+        private bool CanMoveRight(Shape curFigure)
         {
             int figureWidth = curFigure.ColumnCount;
             int figureHeight = curFigure.RowCount;
@@ -239,7 +239,7 @@ namespace Tetris
             {
                 for (int c = figureWidth - 1; c >= 0; c--)
                 {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (curFigure.ColumnIndexOnGrid[c] == Cols - 1 || 
                             Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
@@ -278,9 +278,9 @@ namespace Tetris
                 return (Dir_Rotation)(((int)currentDirection == 0) ? (enumSize - 1) : (int)currentDirection - 1);
         }
 
-        private bool CanRotate(bool isClockwise, Figure curFigure)
+        private bool CanRotate(bool isClockwise, Shape curFigure)
         {
-            Figure rotationFigure = curFigure.Clone();
+            Shape rotationFigure = curFigure.Clone();
             rotationFigure.RowIndexOnGrid = (int[])curFigure.RowIndexOnGrid.Clone();
             rotationFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
 
@@ -295,7 +295,7 @@ namespace Tetris
             {
                 for (int c = 0; c < figureWidth; c++)
                 {
-                    if (rotationFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (rotationFigure.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (rotationFigure.RowIndexOnGrid[r] < 0 ||
                             rotationFigure.ColumnIndexOnGrid[c] < 0 || rotationFigure.ColumnIndexOnGrid[c] >= Cols ||

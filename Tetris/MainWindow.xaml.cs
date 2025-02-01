@@ -182,7 +182,7 @@ namespace Tetris
             }
         }
 
-        private void DrawFiguresOnGrid(Figure figure, double opacity)
+        private void DrawFiguresOnGrid(Shape figure, double opacity)
         {
             for (int r = 0; r < figure.RowIndexOnGrid.Length; r++)
             {
@@ -193,9 +193,9 @@ namespace Tetris
                     {
                         continue;
                     }
-                    if (figure.FigureValue[r, c] != GridValue.Empty)
+                    if (figure.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Source = gridValToImage[figure.FigureValue[r, c]];
+                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Source = gridValToImage[figure.ShapeValue[r, c]];
                         gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Opacity = opacity;
                     }
                 }
@@ -223,17 +223,17 @@ namespace Tetris
 
         public void DrawBufferFigure()
         {
-            Figure figure = Game.BufferFigure;
+            Shape figure = Game.BufferFigure;
 
-            int countCols = figure.FigureValue.GetLength(1);
+            int countCols = figure.ShapeValue.GetLength(1);
             int countRows = 0;
             int startRowsIndex = 0;
 
-            for (int r = 0; r < figure.FigureValue.GetLength(0); r++)
+            for (int r = 0; r < figure.ShapeValue.GetLength(0); r++)
             {
                 for (int c = 0; c < countCols; c++)
                 {
-                    if (figure.FigureValue[r, c] != GridValue.Empty)
+                    if (figure.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (countRows == 0)
                             startRowsIndex = r;
@@ -258,7 +258,7 @@ namespace Tetris
                 {
                     Image image = new Image
                     {
-                        Source = gridValToImage[figure.FigureValue[r, c]],
+                        Source = gridValToImage[figure.ShapeValue[r, c]],
                         Width = tileSize,
                     };
                     BufferFigureGrid.Children.Add(image);
