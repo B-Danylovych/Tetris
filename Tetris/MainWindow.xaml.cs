@@ -381,12 +381,13 @@ namespace Tetris
                 canMoveDown = Game.MoveDown();
                 if (!canMoveDown)
                 {
-                    Game.AddShapeTilesOnGrid();
+                    Game.SetShapeOnGrid();
                     Game.RemoveLines();
                     Game.checkGameOver();
                     if (Game.IsGameOver)
                         return;
-                    Game.AddShape();
+                    Game.SetCurrentShape();
+                    Game.SetBufferShape();
                     DrawBufferShape();
                     if (Game.IterationTick > 20)
                         Game.IterationTick--;
@@ -445,7 +446,8 @@ namespace Tetris
         {
             DrawBufferShape();
             await ShowCountDown();
-            Game.AddShape();
+            Game.SetCurrentShape();
+            Game.SetBufferShape();
             DrawBufferShape();
             await GameLoop();
             if (Game.IsGameOver)

@@ -12,14 +12,12 @@ namespace Tetris
     public class GameMain
     {
         public int Rows { get; }
-        public int Cols { get; }
+        public int Columns { get; }
         private readonly int HiddenRowOnTop = 2;
 
         public List<List<GridValue>> Grid { get; protected set; }
 
         private int _lockDelayTick = 500;
-        private int _iterationTick = 500;
-
         public int LockDelayTick
         {
             get => _lockDelayTick;
@@ -32,6 +30,7 @@ namespace Tetris
             }
         }
 
+        private int _iterationTick = 500;
         public int IterationTick
         {
             get => _iterationTick;
@@ -55,35 +54,41 @@ namespace Tetris
         public Shape CurrentShape { get; protected set; }
         public Shape ProjectedShape { get; protected set; }
 
-        public GameMain(int rows, int cols)
+        public GameMain(int rows, int columns)
         {
             Rows = rows + HiddenRowOnTop;
-            Cols = cols;
-            Grid = Enumerable.Range(0, Rows).Select(i => Enumerable.Repeat(GridValue.Empty, Cols).ToList()).ToList();
+            Columns = columns;
+            Grid = Enumerable.Range(0, Rows)
+                .Select(i => Enumerable.Repeat(GridValue.Empty, Columns).ToList()).ToList();
 
-            AddShapeInBuffer();
+            SetBufferShape();
         }
 
-        private void AddShapeInBuffer()
+        public void SetBufferShape()
         {
-            GridValue typeShape = GetRandomGridValue();
-            BufferShape = new Shape(typeShape, Dir_Rotation.Up);
+            GridValue shapeType = GetRandomShapeValue();
+            BufferShape = new Shape(shapeType, Dir_Rotation.Up);
         }
 
-        public GridValue GetRandomGridValue()
+        private GridValue GetRandomShapeValue()
         {
-            Array values = Enum.GetValues(typeof(GridValue));
+            Array gridValues = Enum.GetValues(typeof(GridValue));
             GridValue randomValue;
 
             do
             {
-                randomValue = (GridValue)values.GetValue(this.random.Next(values.Length));
-            } while (randomValue == GridValue.Empty);
+                object? gridValue = gridValues.GetValue(random.Next(gridValues.Length));
+                if (gridValue == null)
+                    throw new InvalidOperationException("Unexpected null value in enum.");
+
+                randomValue = (GridValue)gridValue;
+            }
+            while (randomValue == GridValue.Empty);
 
             return randomValue;
         }
 
-        public void AddShape()
+        public void SetCurrentShape()
         {
             CurrentShape = BufferShape.DeepCopy();
 
@@ -93,50 +98,111 @@ namespace Tetris
             int[] rowsPosition = Enumerable.Range(0, shapeHeight)
                 .Select(i => this.Rows - 1 - i).ToArray();
             int[] columsPosition = Enumerable.Range(0, shapeWidth)
-                .Select(i => (this.Cols / 2 - shapeWidth / 2) + i).ToArray();
+                .Select(i => (this.Columns / 2 - shapeWidth / 2) + i).ToArray();
 
             CurrentShape.SetNewPositionOnGrid(rowsPosition, columsPosition);
 
-            ProjectedShape = CheckFallDown(CurrentShape);
-            AddShapeInBuffer();
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
         }
 
-        private Shape CheckFallDown(Shape curShape)
+        private Shape GetProjectedDownShape(Shape curShape)
         {
-            List<int> projFall = new();
-            int highestProjectionOfTiles;
+            int highestProjTile = GetHighestProjectedTileRow(curShape);
+
             Shape projectedShape = curShape.DeepCopy();
 
+            int[] projRowsPosition = Enumerable.Range(0, projectedShape.RowCount)
+                .Select(i => highestProjTile - i).ToArray();
+
+            projectedShape.SetNewPositionOnGrid(projRowsPosition, projectedShape.ColumnsPosition);
+
+            return projectedShape;
+        }
+
+        private int GetHighestProjectedTileRow(Shape curShape)
+        {
+            List<int> projTilesFall = new();
+
             int shapeWidth = curShape.ColumnCount;
-            int shaprHeight = curShape.RowCount;
+            int shapeHeight = curShape.RowCount;
 
             for (int c = 0; c < shapeWidth; c++)
             {
-                for (int r = shaprHeight - 1; r >= 0; r--)
+                for (int r = shapeHeight - 1; r >= 0; r--)
                 {
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        for (int i = curShape.RowsPosition[r]; i >= 0; i--)
-                        {
-                            if (i == 0 || Grid[i - 1][curShape.ColumnsPosition[c]] != GridValue.Empty)
-                            {
-                                projFall.Add(i + r);
-                                break;
-                            }
-                        }
+                        projTilesFall.Add(ProjectTileDown
+                            (curShape.RowsPosition[r], curShape.ColumnsPosition[c]) + r);
                         break;
                     }
                 }
             }
 
-            highestProjectionOfTiles = projFall.Max();
+            return projTilesFall.Max();
+        }
 
-            int[] projRowsPosition = Enumerable.Range(0, shaprHeight)
-                .Select(i => highestProjectionOfTiles - i).ToArray();
+        private int ProjectTileDown(int rowPosOnGrid, int columnPosOnGrid)
+        {
+            for (int i = rowPosOnGrid; i >= 0; i--)
+            {
+                if (i == 0 || Grid[i - 1][columnPosOnGrid] != GridValue.Empty)
+                {
+                    return i;
+                }
+            }
+            throw new InvalidOperationException("The loop did not return a value.");
+        }
 
-            projectedShape.SetNewPositionOnGrid(projRowsPosition, projectedShape.ColumnsPosition);
+        public void SetShapeOnGrid()
+        {
+            for (int r = 0; r < CurrentShape.RowCount; r++)
+            {
+                for (int c = 0; c < CurrentShape.ColumnCount; c++)
+                {
+                    if (CurrentShape.ShapeValue[r, c] != GridValue.Empty)
+                    {
+                        int rowOnGrid = CurrentShape.RowsPosition[r];
+                        int columnOnGrid = CurrentShape.ColumnsPosition[c];
 
-            return projectedShape;
+                        Grid[rowOnGrid][columnOnGrid] = CurrentShape.ShapeValue[r, c];
+                    }
+                }
+            }
+        }
+
+        public void RemoveLines()
+        {
+            int linesRemoved = 0;
+            for (int r = 0; r < Grid.Count - HiddenRowOnTop; r++)
+            {
+                if (isLineFullCheck(r))
+                {
+                    Grid.RemoveAt(r);
+                    Grid.Add(Enumerable.Repeat(GridValue.Empty, Columns).ToList());
+                    linesRemoved++;
+                    r--;
+                }
+            }
+            SetNewScore(linesRemoved);
+        }
+
+        private bool isLineFullCheck(int row)
+        {
+            for (int c = 0; c < Grid[row].Count; c++)
+                if (Grid[row][c] == GridValue.Empty)
+                    return false;
+
+            return true;
+        }
+
+        private void SetNewScore(int linesRemoved)
+        {
+            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
+            int addScore = (int)Math.Pow(linesRemoved * 10, 2);
+            addScore += (linesRemoved < 4) ? 0 : 400;
+            this.ScoreNum += addScore;
+            this.LinesNum += linesRemoved;
         }
 
         public bool MoveDown()
@@ -150,48 +216,6 @@ namespace Tetris
                 return false;
         }
 
-        public void AddShapeTilesOnGrid()
-        {
-            for (int r = 0; r < CurrentShape.RowCount; r++)
-            {
-                for (int c = 0; c < CurrentShape.ColumnCount; c++)
-                {
-                    if (CurrentShape.ShapeValue[r, c] != GridValue.Empty)
-                    {
-                        Grid[CurrentShape.RowsPosition[r]][CurrentShape.ColumnsPosition[c]] = CurrentShape.ShapeValue[r, c];
-                    }
-                }
-            }
-        }
-
-        public void RemoveLines()
-        {
-            int linesRemoved = 0;
-            for (int r = 0; r < Grid.Count - HiddenRowOnTop; r++)
-            {
-                bool isFull = true;
-                for (int c = 0; c < Grid[r].Count; c++)
-                {
-                    if (Grid[r][c] == GridValue.Empty)
-                    {
-                        isFull = false;
-                        break;
-                    }
-                }
-                if (isFull)
-                {
-                    Grid.RemoveAt(r);
-                    Grid.Add(Enumerable.Repeat(GridValue.Empty, Cols).ToList());
-                    linesRemoved++;
-                    r--;
-                }
-            }
-            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
-            int addScore = (linesRemoved < 4) ? (int)Math.Pow(linesRemoved * 10, 2) : (int)Math.Pow(linesRemoved * 10, 2) + 400;
-            this.ScoreNum += addScore;
-            this.LinesNum += linesRemoved;
-        }
-
         private bool CanMoveLeft(Shape curShape)
         {
             int shapeWidth = curShape.ColumnCount;
@@ -203,8 +227,11 @@ namespace Tetris
                 {
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (curShape.ColumnsPosition[c] == 0 || 
-                            Grid[curShape.RowsPosition[r]][curShape.ColumnsPosition[c] - 1] != GridValue.Empty)
+                        int rowOnGrid = curShape.RowsPosition[r];
+                        int columnOnGrid = curShape.ColumnsPosition[c];
+
+                        if (columnOnGrid == 0 || 
+                            Grid[rowOnGrid][columnOnGrid - 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -222,7 +249,8 @@ namespace Tetris
 
             CurrentShape.MovePositionLeft();
 
-            ProjectedShape = CheckFallDown(CurrentShape);
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
+
             return true;
         }
 
@@ -237,8 +265,11 @@ namespace Tetris
                 {
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (curShape.ColumnsPosition[c] == Cols - 1 || 
-                            Grid[curShape.RowsPosition[r]][curShape.ColumnsPosition[c] + 1] != GridValue.Empty)
+                        int rowOnGrid = curShape.RowsPosition[r];
+                        int columnOnGrid = curShape.ColumnsPosition[c];
+
+                        if (columnOnGrid == Columns - 1 || 
+                            Grid[rowOnGrid][columnOnGrid + 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -256,7 +287,7 @@ namespace Tetris
 
             CurrentShape.MovePositionRight();
 
-            ProjectedShape = CheckFallDown(CurrentShape);
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
             return true;
         }
 
@@ -279,7 +310,7 @@ namespace Tetris
                     if (rotationShape.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (rotationShape.RowsPosition[r] < 0 ||
-                            rotationShape.ColumnsPosition[c] < 0 || rotationShape.ColumnsPosition[c] >= Cols ||
+                            rotationShape.ColumnsPosition[c] < 0 || rotationShape.ColumnsPosition[c] >= Columns ||
                             Grid[rotationShape.RowsPosition[r]][rotationShape.ColumnsPosition[c]] != GridValue.Empty)
                         {
                             return false;
@@ -301,12 +332,12 @@ namespace Tetris
             else
                 CurrentShape.RotateCounterclockwise();
 
-            ProjectedShape = CheckFallDown(CurrentShape);
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
         }
 
         public void checkGameOver()
         {
-            for (int c = 0; c < Cols; c++)
+            for (int c = 0; c < Columns; c++)
             {
                 if (Grid[Rows - HiddenRowOnTop][c] != GridValue.Empty)
                     IsGameOver = true;
