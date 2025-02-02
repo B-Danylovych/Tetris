@@ -46,13 +46,13 @@ namespace Tetris
         private readonly Dictionary<GridValue, ImageSource> gridValToImage = new Dictionary<GridValue, ImageSource>()
         {
             { GridValue.Empty, null},
-            { GridValue.I_Figure, Images.I_Figure},
-            { GridValue.O_Figure, Images.O_Figure},
-            { GridValue.T_Figure, Images.T_Figure},
-            { GridValue.Z_Figure, Images.Z_Figure},
-            { GridValue.S_Figure, Images.S_Figure},
-            { GridValue.L_Figure, Images.L_Figure},
-            { GridValue.J_Figure, Images.J_Figure},
+            { GridValue.I_Shape, Images.I_Shape},
+            { GridValue.O_Shape, Images.O_Shape},
+            { GridValue.T_Shape, Images.T_Shape},
+            { GridValue.Z_Shape, Images.Z_Shape},
+            { GridValue.S_Shape, Images.S_Shape},
+            { GridValue.L_Shape, Images.L_Shape},
+            { GridValue.J_Shape, Images.J_Shape},
         };
 
         public MainWindow()
@@ -182,21 +182,21 @@ namespace Tetris
             }
         }
 
-        private void DrawFiguresOnGrid(Shape figure, double opacity)
+        private void DrawShapesOnGrid(Shape shape, double opacity)
         {
-            for (int r = 0; r < figure.RowIndexOnGrid.Length; r++)
+            for (int r = 0; r < shape.RowsPosition.Length; r++)
             {
-                for (int c = 0; c < figure.ColumnIndexOnGrid.Length; c++)
+                for (int c = 0; c < shape.ColumnsPosition.Length; c++)
                 {
-                    if (figure.RowIndexOnGrid[r] > gridImages.GetLength(0) - 1 || figure.RowIndexOnGrid[r] < 0 ||
-                       figure.ColumnIndexOnGrid[c] > gridImages.GetLength(1) - 1 || figure.ColumnIndexOnGrid[c] < 0)
+                    if (shape.RowsPosition[r] > gridImages.GetLength(0) - 1 || shape.RowsPosition[r] < 0 ||
+                       shape.ColumnsPosition[c] > gridImages.GetLength(1) - 1 || shape.ColumnsPosition[c] < 0)
                     {
                         continue;
                     }
-                    if (figure.ShapeValue[r, c] != GridValue.Empty)
+                    if (shape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Source = gridValToImage[figure.ShapeValue[r, c]];
-                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Opacity = opacity;
+                        gridImages[shape.RowsPosition[r], shape.ColumnsPosition[c]].Source = gridValToImage[shape.ShapeValue[r, c]];
+                        gridImages[shape.RowsPosition[r], shape.ColumnsPosition[c]].Opacity = opacity;
                     }
                 }
             }
@@ -217,23 +217,23 @@ namespace Tetris
         private void Draw()
         {
             DrawGrid();
-            DrawFiguresOnGrid(Game.ProjectedFigure, 0.2);
-            DrawFiguresOnGrid(Game.CurrentFigure, 1);
+            DrawShapesOnGrid(Game.ProjectedShape, 0.2);
+            DrawShapesOnGrid(Game.CurrentShape, 1);
         }
 
-        public void DrawBufferFigure()
+        public void DrawBufferShape()
         {
-            Shape figure = Game.BufferFigure;
+            Shape shape = Game.BufferShape;
 
-            int countCols = figure.ShapeValue.GetLength(1);
+            int countCols = shape.ShapeValue.GetLength(1);
             int countRows = 0;
             int startRowsIndex = 0;
 
-            for (int r = 0; r < figure.ShapeValue.GetLength(0); r++)
+            for (int r = 0; r < shape.ShapeValue.GetLength(0); r++)
             {
                 for (int c = 0; c < countCols; c++)
                 {
-                    if (figure.ShapeValue[r, c] != GridValue.Empty)
+                    if (shape.ShapeValue[r, c] != GridValue.Empty)
                     {
                         if (countRows == 0)
                             startRowsIndex = r;
@@ -244,13 +244,13 @@ namespace Tetris
                 }
             }
 
-            BufferFigureGrid.Children.Clear();
+            BufferShapeGrid.Children.Clear();
 
-            BufferFigureGrid.Columns = countCols;
-            BufferFigureGrid.Rows = countRows;
+            BufferShapeGrid.Columns = countCols;
+            BufferShapeGrid.Rows = countRows;
 
             // ділимо на 4, оскільки максимальна ширина тетраміно фігури - 4, а саме у I Фігурі, яка "лежить"(має Direction - Top/Bottom)
-            double tileSize = BufferFigureBorder.ActualWidth / 4;
+            double tileSize = BufferShapeBorder.ActualWidth / 4;
 
             for (int r = startRowsIndex; r < startRowsIndex + countRows; r++)
             {
@@ -258,10 +258,10 @@ namespace Tetris
                 {
                     Image image = new Image
                     {
-                        Source = gridValToImage[figure.ShapeValue[r, c]],
+                        Source = gridValToImage[shape.ShapeValue[r, c]],
                         Width = tileSize,
                     };
-                    BufferFigureGrid.Children.Add(image);
+                    BufferShapeGrid.Children.Add(image);
                 }
             }
         }
@@ -381,13 +381,13 @@ namespace Tetris
                 canMoveDown = Game.MoveDown();
                 if (!canMoveDown)
                 {
-                    Game.AddFigureTilesOnGrid();
+                    Game.AddShapeTilesOnGrid();
                     Game.RemoveLines();
                     Game.checkGameOver();
                     if (Game.IsGameOver)
                         return;
-                    Game.AddFigure();
-                    DrawBufferFigure();
+                    Game.AddShape();
+                    DrawBufferShape();
                     if (Game.IterationTick > 20)
                         Game.IterationTick--;
 
@@ -443,10 +443,10 @@ namespace Tetris
 
         private async Task StartToEnd()
         {
-            DrawBufferFigure();
+            DrawBufferShape();
             await ShowCountDown();
-            Game.AddFigure();
-            DrawBufferFigure();
+            Game.AddShape();
+            DrawBufferShape();
             await GameLoop();
             if (Game.IsGameOver)
             {

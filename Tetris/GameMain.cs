@@ -51,9 +51,9 @@ namespace Tetris
 
         private readonly Random random = new Random();
 
-        public Shape BufferFigure { get; protected set; }
-        public Shape CurrentFigure { get; protected set; }
-        public Shape ProjectedFigure { get; protected set; }
+        public Shape BufferShape { get; protected set; }
+        public Shape CurrentShape { get; protected set; }
+        public Shape ProjectedShape { get; protected set; }
 
         public GameMain(int rows, int cols)
         {
@@ -61,13 +61,13 @@ namespace Tetris
             Cols = cols;
             Grid = Enumerable.Range(0, Rows).Select(i => Enumerable.Repeat(GridValue.Empty, Cols).ToList()).ToList();
 
-            AddFigureInBuffer();
+            AddShapeInBuffer();
         }
 
-        private void AddFigureInBuffer()
+        private void AddShapeInBuffer()
         {
-            GridValue typeFigure = GetRandomGridValue();
-            BufferFigure = new Shape(typeFigure, Dir_Rotation.Up);
+            GridValue typeShape = GetRandomGridValue();
+            BufferShape = new Shape(typeShape, Dir_Rotation.Up);
         }
 
         public GridValue GetRandomGridValue()
@@ -83,40 +83,42 @@ namespace Tetris
             return randomValue;
         }
 
-        public void AddFigure()
+        public void AddShape()
         {
-            CurrentFigure = BufferFigure.Clone();
+            CurrentShape = BufferShape.DeepCopy();
 
-            int figureWidth = CurrentFigure.ColumnCount;
-            int figureHeight = CurrentFigure.RowCount;
+            int shapeWidth = CurrentShape.ColumnCount;
+            int shapeHeight = CurrentShape.RowCount;
 
-            CurrentFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight)
+            int[] rowsPosition = Enumerable.Range(0, shapeHeight)
                 .Select(i => this.Rows - 1 - i).ToArray();
-            CurrentFigure.ColumnIndexOnGrid = Enumerable.Range(0, figureWidth)
-                .Select(i => (this.Cols / 2 - figureWidth / 2) + i).ToArray();
+            int[] columsPosition = Enumerable.Range(0, shapeWidth)
+                .Select(i => (this.Cols / 2 - shapeWidth / 2) + i).ToArray();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
-            AddFigureInBuffer();
+            CurrentShape.SetNewPositionOnGrid(rowsPosition, columsPosition);
+
+            ProjectedShape = CheckFallDown(CurrentShape);
+            AddShapeInBuffer();
         }
 
-        private Shape CheckFallDown(Shape curFigure)
+        private Shape CheckFallDown(Shape curShape)
         {
             List<int> projFall = new();
             int highestProjectionOfTiles;
-            Shape projectedFigure = curFigure.Clone();
+            Shape projectedShape = curShape.DeepCopy();
 
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
+            int shapeWidth = curShape.ColumnCount;
+            int shaprHeight = curShape.RowCount;
 
-            for (int c = 0; c < figureWidth; c++)
+            for (int c = 0; c < shapeWidth; c++)
             {
-                for (int r = figureHeight - 1; r >= 0; r--)
+                for (int r = shaprHeight - 1; r >= 0; r--)
                 {
-                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        for (int i = curFigure.RowIndexOnGrid[r]; i >= 0; i--)
+                        for (int i = curShape.RowsPosition[r]; i >= 0; i--)
                         {
-                            if (i == 0 || Grid[i - 1][curFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
+                            if (i == 0 || Grid[i - 1][curShape.ColumnsPosition[c]] != GridValue.Empty)
                             {
                                 projFall.Add(i + r);
                                 break;
@@ -129,37 +131,34 @@ namespace Tetris
 
             highestProjectionOfTiles = projFall.Max();
 
-            projectedFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight).Select(i => highestProjectionOfTiles - i).ToArray();
-            projectedFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
+            int[] projRowsPosition = Enumerable.Range(0, shaprHeight)
+                .Select(i => highestProjectionOfTiles - i).ToArray();
 
-            return projectedFigure;
+            projectedShape.SetNewPositionOnGrid(projRowsPosition, projectedShape.ColumnsPosition);
+
+            return projectedShape;
         }
 
         public bool MoveDown()
         {
-            if (CurrentFigure.RowIndexOnGrid[0] > ProjectedFigure.RowIndexOnGrid[0])
+            if (CurrentShape.RowsPosition[0] > ProjectedShape.RowsPosition[0])
             {
-                for (int r = 0; r < CurrentFigure.RowCount; r++)
-                {
-                    CurrentFigure.RowIndexOnGrid[r]--;
-                }
+                CurrentShape.MovePositionDown();
                 return true;
             }
             else
-            {
                 return false;
-            }
         }
 
-        public void AddFigureTilesOnGrid()
+        public void AddShapeTilesOnGrid()
         {
-            for (int r = 0; r < CurrentFigure.RowCount; r++)
+            for (int r = 0; r < CurrentShape.RowCount; r++)
             {
-                for (int c = 0; c < CurrentFigure.ColumnCount; c++)
+                for (int c = 0; c < CurrentShape.ColumnCount; c++)
                 {
-                    if (CurrentFigure.ShapeValue[r, c] != GridValue.Empty)
+                    if (CurrentShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c]] = CurrentFigure.ShapeValue[r, c];
+                        Grid[CurrentShape.RowsPosition[r]][CurrentShape.ColumnsPosition[c]] = CurrentShape.ShapeValue[r, c];
                     }
                 }
             }
@@ -193,19 +192,19 @@ namespace Tetris
             this.LinesNum += linesRemoved;
         }
 
-        private bool CanMoveLeft(Shape curFigure)
+        private bool CanMoveLeft(Shape curShape)
         {
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
+            int shapeWidth = curShape.ColumnCount;
+            int shapeHeight = curShape.RowCount;
 
-            for (int r = 0; r < figureHeight; r++)
+            for (int r = 0; r < shapeHeight; r++)
             {
-                for (int c = 0; c < figureWidth; c++)
+                for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (curFigure.ColumnIndexOnGrid[c] == 0 || 
-                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
+                        if (curShape.ColumnsPosition[c] == 0 || 
+                            Grid[curShape.RowsPosition[r]][curShape.ColumnsPosition[c] - 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -218,31 +217,28 @@ namespace Tetris
 
         public bool MoveLeft()
         {
-            if (!CanMoveLeft(CurrentFigure))
+            if (!CanMoveLeft(CurrentShape))
                 return false;
 
-            for (int c = 0; c < CurrentFigure.ColumnCount; c++)
-            {
-                CurrentFigure.ColumnIndexOnGrid[c]--;
-            }
+            CurrentShape.MovePositionLeft();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
+            ProjectedShape = CheckFallDown(CurrentShape);
             return true;
         }
 
-        private bool CanMoveRight(Shape curFigure)
+        private bool CanMoveRight(Shape curShape)
         {
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
+            int shaprWidth = curShape.ColumnCount;
+            int shapeHeight = curShape.RowCount;
 
-            for (int r = 0; r < figureHeight; r++)
+            for (int r = 0; r < shapeHeight; r++)
             {
-                for (int c = figureWidth - 1; c >= 0; c--)
+                for (int c = shaprWidth - 1; c >= 0; c--)
                 {
-                    if (curFigure.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (curFigure.ColumnIndexOnGrid[c] == Cols - 1 || 
-                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
+                        if (curShape.ColumnsPosition[c] == Cols - 1 || 
+                            Grid[curShape.RowsPosition[r]][curShape.ColumnsPosition[c] + 1] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -255,51 +251,36 @@ namespace Tetris
 
         public bool MoveRight()
         {
-            if (!CanMoveRight(CurrentFigure))
+            if (!CanMoveRight(CurrentShape))
                 return false;
 
-            for (int c = 0; c < CurrentFigure.ColumnCount; c++)
-            {
-                CurrentFigure.ColumnIndexOnGrid[c]++;
-            }
+            CurrentShape.MovePositionRight();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
+            ProjectedShape = CheckFallDown(CurrentShape);
             return true;
         }
 
-
-        private Dir_Rotation GetNewDirection(Dir_Rotation currentDirection, bool isClockwise)
+        private bool CanRotate(bool isClockwise, Shape curShape)
         {
-            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
+            Shape rotationShape = curShape.DeepCopy();
 
             if (isClockwise)
-                return (Dir_Rotation)(((int)currentDirection == (enumSize - 1)) ? 0 : (int)currentDirection + 1);
+                rotationShape.RotateClockwise();
             else
-                return (Dir_Rotation)(((int)currentDirection == 0) ? (enumSize - 1) : (int)currentDirection - 1);
-        }
+                rotationShape.RotateCounterclockwise();
 
-        private bool CanRotate(bool isClockwise, Shape curFigure)
-        {
-            Shape rotationFigure = curFigure.Clone();
-            rotationFigure.RowIndexOnGrid = (int[])curFigure.RowIndexOnGrid.Clone();
-            rotationFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
+            int shapeWidth = rotationShape.ColumnCount;
+            int shapeHeight = rotationShape.RowCount;
 
-            Dir_Rotation newDir = GetNewDirection(rotationFigure.Direction, isClockwise);
-
-            rotationFigure.SetNewDirection(newDir);
-
-            int figureWidth = rotationFigure.ColumnCount;
-            int figureHeight = rotationFigure.RowCount;
-
-            for (int r = 0; r < figureHeight; r++)
+            for (int r = 0; r < shapeHeight; r++)
             {
-                for (int c = 0; c < figureWidth; c++)
+                for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (rotationFigure.ShapeValue[r, c] != GridValue.Empty)
+                    if (rotationShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (rotationFigure.RowIndexOnGrid[r] < 0 ||
-                            rotationFigure.ColumnIndexOnGrid[c] < 0 || rotationFigure.ColumnIndexOnGrid[c] >= Cols ||
-                            Grid[rotationFigure.RowIndexOnGrid[r]][rotationFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
+                        if (rotationShape.RowsPosition[r] < 0 ||
+                            rotationShape.ColumnsPosition[c] < 0 || rotationShape.ColumnsPosition[c] >= Cols ||
+                            Grid[rotationShape.RowsPosition[r]][rotationShape.ColumnsPosition[c]] != GridValue.Empty)
                         {
                             return false;
                         }
@@ -312,14 +293,15 @@ namespace Tetris
 
         public void Rotate(bool isClockwise)
         {
-            if (!CanRotate(isClockwise, CurrentFigure))
+            if (!CanRotate(isClockwise, CurrentShape))
                 return;
 
-            Dir_Rotation newDir = GetNewDirection(CurrentFigure.Direction, isClockwise);
+            if(isClockwise)
+                CurrentShape.RotateClockwise();
+            else
+                CurrentShape.RotateCounterclockwise();
 
-            CurrentFigure.SetNewDirection(newDir);
-
-            ProjectedFigure = CheckFallDown(CurrentFigure);
+            ProjectedShape = CheckFallDown(CurrentShape);
         }
 
         public void checkGameOver()

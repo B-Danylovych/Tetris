@@ -15,27 +15,27 @@ namespace Tetris
             = new List<ShapeMoveOption>();
         public AI_Grid(int rows, int cols, Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid) : base(rows, cols)
         {
-            BufferFigure = setFigureClone(bufferFigure);
-            CurrentFigure = setFigureClone(currentFigure);
-            ProjectedFigure = setFigureClone(projectedFigure);
+            BufferShape = setFigureClone(bufferFigure);
+            CurrentShape = setFigureClone(currentFigure);
+            ProjectedShape = setFigureClone(projectedFigure);
             Grid = new List<List<GridValue>>(grid);
         }
 
         public Shape setFigureClone(Shape cloneFigure)
         {
-            return cloneFigure.Clone();
+            return cloneFigure.DeepCopy();
         }
 
         public void CheckAllPositionsProjectedFigures()
         {
             FigureMoveOptions.Add(GetCurrentPositionMoveOption());
 
-            int[] currentColumnIndexOnGrid = new int[CurrentFigure.ColumnCount];
-            Array.Copy(CurrentFigure.ColumnIndexOnGrid, currentColumnIndexOnGrid, CurrentFigure.ColumnCount);
+            int[] currentColumnsPosition = new int[CurrentShape.ColumnCount];
+            Array.Copy(CurrentShape.ColumnsPosition, currentColumnsPosition, CurrentShape.ColumnCount);
 
             CheckAllPositionsInDirection(MoveLeft);
 
-            CurrentFigure.ColumnIndexOnGrid = currentColumnIndexOnGrid;
+            //CurrentFigure.ColumnsPosition = currentColumnIndexOnGrid;
 
             CheckAllPositionsInDirection(MoveRight);
         }
@@ -55,8 +55,8 @@ namespace Tetris
 
         private ShapeMoveOption GetCurrentPositionMoveOption()
         {
-            return new ShapeMoveOption(ProjectedFigure,
-                CurrentFigure.ColumnIndexOnGrid[0], CalculateMoveOptionScore(ProjectedFigure));
+            return new ShapeMoveOption(ProjectedShape,
+                CurrentShape.ColumnsPosition[0], CalculateMoveOptionScore(ProjectedShape));
         }
 
         public int CalculateMoveOptionScore(Shape projFig)
@@ -78,7 +78,7 @@ namespace Tetris
                 for (int c = 0; c < projFig.ColumnCount; c++)
                 {
                     if (projFig.ShapeValue[r, c] != GridValue.Empty)
-                        return (projFig.RowIndexOnGrid[0] + r);
+                        return (projFig.RowsPosition[0] + r);
                 }
             }
             throw new InvalidOperationException("The projectedFigure is empty.");
@@ -143,7 +143,7 @@ namespace Tetris
                         bool isFromFullLine = false;
                         foreach (int item in fullLinesIndices)
                         {
-                            if (projFig.RowIndexOnGrid[r] == item)
+                            if (projFig.RowsPosition[r] == item)
                             {
                                 isFromFullLine = true;
                                 break;
@@ -154,7 +154,7 @@ namespace Tetris
                         else
                         {
                             lowestNotFromFullLinesTiles.Add
-                                (new int[2] { projFig.RowIndexOnGrid[r], projFig.ColumnIndexOnGrid[c] });
+                                (new int[2] { projFig.RowsPosition[r], projFig.ColumnsPosition[c] });
                             break;
                         }
                     }
@@ -167,18 +167,18 @@ namespace Tetris
         private int[] CalculateFullLines(Shape projFig)
         {
             LinkedList<int> fullLines = new LinkedList<int>();
-            for (int r = 0; r < projFig.RowIndexOnGrid.Length; r++)
+            for (int r = 0; r < projFig.RowsPosition.Length; r++)
             {
                 bool isFull = true;
-                for (int c = 0; c < Grid[projFig.RowIndexOnGrid[r]].Count; c++)
+                for (int c = 0; c < Grid[projFig.RowsPosition[r]].Count; c++)
                 {
-                    if (Grid[projFig.RowIndexOnGrid[r]][c] == GridValue.Empty)
+                    if (Grid[projFig.RowsPosition[r]][c] == GridValue.Empty)
                     {
-                        if (c >= projFig.ColumnIndexOnGrid[0] &&
-                        c <= projFig.ColumnIndexOnGrid[projFig.ColumnIndexOnGrid.Length - 1])
+                        if (c >= projFig.ColumnsPosition[0] &&
+                        c <= projFig.ColumnsPosition[projFig.ColumnsPosition.Length - 1])
                         {
                             if (projFig.ShapeValue[r,
-                                c - projFig.ColumnIndexOnGrid[0]] == GridValue.Empty)
+                                c - projFig.ColumnsPosition[0]] == GridValue.Empty)
                             {
                                 isFull = false;
                                 break;
@@ -192,7 +192,7 @@ namespace Tetris
                     }
                 }
                 if (isFull)
-                    fullLines.AddLast(projFig.RowIndexOnGrid[r]);
+                    fullLines.AddLast(projFig.RowsPosition[r]);
             }
 
             return fullLines.ToArray();

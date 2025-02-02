@@ -109,13 +109,13 @@
                                 <RowDefinition Height="0.3*"/>
                             </Grid.RowDefinitions>
 
-                            <Border x:Name="BufferFigureBorder"
+                            <Border x:Name="BufferShapeBorder"
                                     Margin="20"
                                     BorderBrush="Black"
                                     BorderThickness="2"
                                     Background="{StaticResource GameBackground}"
                                     Grid.Row="0">
-                                <UniformGrid x:Name="BufferFigureGrid"
+                                <UniformGrid x:Name="BufferShapeGrid"
                                              VerticalAlignment="Center"
                                              HorizontalAlignment="Center"
                                              SnapsToDevicePixels="True" 

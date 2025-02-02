@@ -1,263 +1,320 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media.Media3D;
 
 namespace Tetris
 {
     public class Shape
     {
+        private readonly GridValue ShapeType;
+
         public GridValue[,] ShapeValue { get; private set; }
-        private readonly GridValue Type;
         public Dir_Rotation Direction { get; private set; }
 
-        public int[] RowIndexOnGrid { get; set; }
-        public int[] ColumnIndexOnGrid { get; set; }
         public int RowCount { get; private set; }
         public int ColumnCount { get; private set; }
 
-        public Shape(GridValue figure, Dir_Rotation direction)
-        {
-            Type = figure;
-            SetNewDirection(direction);
-            RowCount = this.ShapeValue.GetLength(0);
-            ColumnCount = this.ShapeValue.GetLength(1);
-        }
+        public int[] RowsPosition { get; private set; }
+        public int[] ColumnsPosition { get; private set; }
 
-        public Shape Clone()
+        public Shape DeepCopy()
         {
-            Shape newFigure = new Shape(this.Type, this.Direction)
+            Shape newShape = new Shape(this.ShapeType, this.Direction)
             {
                 ShapeValue = (GridValue[,])this.ShapeValue.Clone(),
                 RowCount = this.RowCount,
-                ColumnCount = this.ColumnCount
+                ColumnCount = this.ColumnCount,
+                RowsPosition = (int[])this.RowsPosition.Clone(),
+                ColumnsPosition = (int[])this.ColumnsPosition.Clone()
             };
-            return newFigure;
+            return newShape;
         }
 
-        public void SetNewDirection(Dir_Rotation dir)
+        public Shape(GridValue shapeType, Dir_Rotation direction)
+        {
+            if(shapeType == GridValue.Empty)
+                throw new InvalidOperationException
+                    ("Shape type cannot have the value GridValue.Empty");
+            ShapeType = shapeType;
+            SetShapeValue(direction);
+            RowCount = this.ShapeValue.GetLength(0);
+            ColumnCount = this.ShapeValue.GetLength(1);
+            RowsPosition = new int[] { int.MinValue };
+            ColumnsPosition = new int[] { int.MinValue };
+        }
+
+        [MemberNotNull(nameof(ShapeValue))]
+        public void SetShapeValue(Dir_Rotation dir)
         {
             this.Direction = dir;
-            this.ShapeValue = Type switch
+            this.ShapeValue = ShapeType switch
             {
-                Tetris.GridValue.I_Figure => I_Figure_Direction(Direction),
-                Tetris.GridValue.O_Figure => O_Figure_Direction(),
-                Tetris.GridValue.T_Figure => T_Figure_Direction(Direction),
-                Tetris.GridValue.L_Figure => L_Figure_Direction(Direction),
-                Tetris.GridValue.J_Figure => J_Figure_Direction(Direction),
-                Tetris.GridValue.Z_Figure => Z_Figure_Direction(Direction),
-                Tetris.GridValue.S_Figure => S_Figure_Direction(Direction)
+                GridValue.O_Shape => set_O_ShapeValue(),
+                GridValue.I_Shape => Set_I_ShapeValue(Direction),
+                GridValue.T_Shape => Set_T_ShapeValue(Direction),
+                GridValue.L_Shape => Set_L_ShapeValue(Direction),
+                GridValue.J_Shape => Set_J_ShapeValue(Direction),
+                GridValue.Z_Shape => Set_Z_ShapeValue(Direction),
+                GridValue.S_Shape => Set_S_ShapeValue(Direction),
+                _ => throw new InvalidOperationException($"Unsupported GridValue: {ShapeType}")
             };
         }
 
-        private GridValue[,] O_Figure_Direction()
+        public void RotateClockwise()
         {
-            GridValue[,] figureO = new GridValue[2, 2];
-            figureO[0, 0] = Tetris.GridValue.O_Figure;
-            figureO[0, 1] = Tetris.GridValue.O_Figure;
-            figureO[1, 0] = Tetris.GridValue.O_Figure;
-            figureO[1, 1] = Tetris.GridValue.O_Figure;
+            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
 
-            return figureO;
+            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == (enumSize - 1)) ? 0
+                : (int)this.Direction + 1);
+
+            SetShapeValue(newDir);
         }
 
-        private GridValue[,] I_Figure_Direction(Dir_Rotation direction)
+        public void RotateCounterclockwise()
         {
-            GridValue[,] figureI = new GridValue[4, 4];
+            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
+
+            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == 0) 
+                ? (enumSize - 1) : (int)this.Direction - 1);
+
+            SetShapeValue(newDir);
+        }
+
+        public void SetNewPositionOnGrid(int[] rowsPosition, int[] columnsPosition)
+        {
+            RowsPosition = rowsPosition;
+            ColumnsPosition = columnsPosition;
+        }
+
+        public void MovePositionDown()
+        {
+            for (int i = 0; i < RowsPosition.Length; i++)
+                RowsPosition[i]--;
+        }
+
+        public void MovePositionLeft()
+        {
+            for (int i = 0; i < ColumnsPosition.Length; i++)
+                ColumnsPosition[i]--;
+        }
+
+        public void MovePositionRight()
+        {
+            for (int i = 0; i < ColumnsPosition.Length; i++)
+                ColumnsPosition[i]++;
+        }
+
+        private GridValue[,] set_O_ShapeValue()
+        {
+            GridValue[,] shapeO = new GridValue[2, 2];
+            shapeO[0, 0] = GridValue.O_Shape;
+            shapeO[0, 1] = GridValue.O_Shape;
+            shapeO[1, 0] = GridValue.O_Shape;
+            shapeO[1, 1] = GridValue.O_Shape;
+
+            return shapeO;
+        }
+
+        private GridValue[,] Set_I_ShapeValue(Dir_Rotation direction)
+        {
+            GridValue[,] shapeI = new GridValue[4, 4];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureI[1, 0] = Tetris.GridValue.I_Figure;
-                    figureI[1, 1] = Tetris.GridValue.I_Figure;
-                    figureI[1, 2] = Tetris.GridValue.I_Figure;
-                    figureI[1, 3] = Tetris.GridValue.I_Figure;
+                    shapeI[1, 0] = GridValue.I_Shape;
+                    shapeI[1, 1] = GridValue.I_Shape;
+                    shapeI[1, 2] = GridValue.I_Shape;
+                    shapeI[1, 3] = GridValue.I_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureI[0, 2] = Tetris.GridValue.I_Figure;
-                    figureI[1, 2] = Tetris.GridValue.I_Figure;
-                    figureI[2, 2] = Tetris.GridValue.I_Figure;
-                    figureI[3, 2] = Tetris.GridValue.I_Figure;
+                    shapeI[0, 2] = GridValue.I_Shape;
+                    shapeI[1, 2] = GridValue.I_Shape;
+                    shapeI[2, 2] = GridValue.I_Shape;
+                    shapeI[3, 2] = GridValue.I_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureI[2, 0] = Tetris.GridValue.I_Figure;
-                    figureI[2, 1] = Tetris.GridValue.I_Figure;
-                    figureI[2, 2] = Tetris.GridValue.I_Figure;
-                    figureI[2, 3] = Tetris.GridValue.I_Figure;
+                    shapeI[2, 0] = GridValue.I_Shape;
+                    shapeI[2, 1] = GridValue.I_Shape;
+                    shapeI[2, 2] = GridValue.I_Shape;
+                    shapeI[2, 3] = GridValue.I_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureI[0, 1] = Tetris.GridValue.I_Figure;
-                    figureI[1, 1] = Tetris.GridValue.I_Figure;
-                    figureI[2, 1] = Tetris.GridValue.I_Figure;
-                    figureI[3, 1] = Tetris.GridValue.I_Figure;
+                    shapeI[0, 1] = GridValue.I_Shape;
+                    shapeI[1, 1] = GridValue.I_Shape;
+                    shapeI[2, 1] = GridValue.I_Shape;
+                    shapeI[3, 1] = GridValue.I_Shape;
                     break;
             }
-            return figureI;
+            return shapeI;
         }
 
-        private GridValue[,] T_Figure_Direction(Dir_Rotation direction)
+        private GridValue[,] Set_T_ShapeValue(Dir_Rotation direction)
         {
-            GridValue[,] figureT = new GridValue[3, 3];
+            GridValue[,] shapeT = new GridValue[3, 3];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureT[0, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 0] = Tetris.GridValue.T_Figure;
-                    figureT[1, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 2] = Tetris.GridValue.T_Figure;
+                    shapeT[0, 1] = GridValue.T_Shape;
+                    shapeT[1, 0] = GridValue.T_Shape;
+                    shapeT[1, 1] = GridValue.T_Shape;
+                    shapeT[1, 2] = GridValue.T_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureT[1, 2] = Tetris.GridValue.T_Figure;
-                    figureT[0, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 1] = Tetris.GridValue.T_Figure;
-                    figureT[2, 1] = Tetris.GridValue.T_Figure;
+                    shapeT[1, 2] = GridValue.T_Shape;
+                    shapeT[0, 1] = GridValue.T_Shape;
+                    shapeT[1, 1] = GridValue.T_Shape;
+                    shapeT[2, 1] = GridValue.T_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureT[2, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 0] = Tetris.GridValue.T_Figure;
-                    figureT[1, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 2] = Tetris.GridValue.T_Figure;
+                    shapeT[2, 1] = GridValue.T_Shape;
+                    shapeT[1, 0] = GridValue.T_Shape;
+                    shapeT[1, 1] = GridValue.T_Shape;
+                    shapeT[1, 2] = GridValue.T_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureT[1, 0] = Tetris.GridValue.T_Figure;
-                    figureT[0, 1] = Tetris.GridValue.T_Figure;
-                    figureT[1, 1] = Tetris.GridValue.T_Figure;
-                    figureT[2, 1] = Tetris.GridValue.T_Figure;
+                    shapeT[1, 0] = GridValue.T_Shape;
+                    shapeT[0, 1] = GridValue.T_Shape;
+                    shapeT[1, 1] = GridValue.T_Shape;
+                    shapeT[2, 1] = GridValue.T_Shape;
                     break;
             }
-            return figureT;
+            return shapeT;
         }
 
-        private GridValue[,] L_Figure_Direction(Dir_Rotation direction)
+        private GridValue[,] Set_L_ShapeValue(Dir_Rotation direction)
         {
-            GridValue[,] figureL = new GridValue[3, 3];
+            GridValue[,] shapeL = new GridValue[3, 3];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureL[0, 2] = Tetris.GridValue.L_Figure;
-                    figureL[1, 0] = Tetris.GridValue.L_Figure;
-                    figureL[1, 1] = Tetris.GridValue.L_Figure;
-                    figureL[1, 2] = Tetris.GridValue.L_Figure;
+                    shapeL[0, 2] = GridValue.L_Shape;
+                    shapeL[1, 0] = GridValue.L_Shape;
+                    shapeL[1, 1] = GridValue.L_Shape;
+                    shapeL[1, 2] = GridValue.L_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureL[2, 2] = Tetris.GridValue.L_Figure;
-                    figureL[0, 1] = Tetris.GridValue.L_Figure;
-                    figureL[1, 1] = Tetris.GridValue.L_Figure;
-                    figureL[2, 1] = Tetris.GridValue.L_Figure;
+                    shapeL[2, 2] = GridValue.L_Shape;
+                    shapeL[0, 1] = GridValue.L_Shape;
+                    shapeL[1, 1] = GridValue.L_Shape;
+                    shapeL[2, 1] = GridValue.L_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureL[2, 0] = Tetris.GridValue.L_Figure;
-                    figureL[1, 0] = Tetris.GridValue.L_Figure;
-                    figureL[1, 1] = Tetris.GridValue.L_Figure;
-                    figureL[1, 2] = Tetris.GridValue.L_Figure;
+                    shapeL[2, 0] = GridValue.L_Shape;
+                    shapeL[1, 0] = GridValue.L_Shape;
+                    shapeL[1, 1] = GridValue.L_Shape;
+                    shapeL[1, 2] = GridValue.L_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureL[0, 0] = Tetris.GridValue.L_Figure;
-                    figureL[0, 1] = Tetris.GridValue.L_Figure;
-                    figureL[1, 1] = Tetris.GridValue.L_Figure;
-                    figureL[2, 1] = Tetris.GridValue.L_Figure;
+                    shapeL[0, 0] = GridValue.L_Shape;
+                    shapeL[0, 1] = GridValue.L_Shape;
+                    shapeL[1, 1] = GridValue.L_Shape;
+                    shapeL[2, 1] = GridValue.L_Shape;
                     break;
             }
-            return figureL;
+            return shapeL;
         }
 
-        private GridValue[,] J_Figure_Direction(Dir_Rotation direction)
+        private GridValue[,] Set_J_ShapeValue(Dir_Rotation direction)
         {
-            GridValue[,] figureJ = new GridValue[3, 3];
+            GridValue[,] shapeJ = new GridValue[3, 3];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureJ[0, 0] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 0] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 2] = Tetris.GridValue.J_Figure;
+                    shapeJ[0, 0] = GridValue.J_Shape;
+                    shapeJ[1, 0] = GridValue.J_Shape;
+                    shapeJ[1, 1] = GridValue.J_Shape;
+                    shapeJ[1, 2] = GridValue.J_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureJ[0, 2] = Tetris.GridValue.J_Figure;
-                    figureJ[0, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[2, 1] = Tetris.GridValue.J_Figure;
+                    shapeJ[0, 2] = GridValue.J_Shape;
+                    shapeJ[0, 1] = GridValue.J_Shape;
+                    shapeJ[1, 1] = GridValue.J_Shape;
+                    shapeJ[2, 1] = GridValue.J_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureJ[2, 2] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 0] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 2] = Tetris.GridValue.J_Figure;
+                    shapeJ[2, 2] = GridValue.J_Shape;
+                    shapeJ[1, 0] = GridValue.J_Shape;
+                    shapeJ[1, 1] = GridValue.J_Shape;
+                    shapeJ[1, 2] = GridValue.J_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureJ[2, 0] = Tetris.GridValue.J_Figure;
-                    figureJ[0, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[1, 1] = Tetris.GridValue.J_Figure;
-                    figureJ[2, 1] = Tetris.GridValue.J_Figure;
+                    shapeJ[2, 0] = GridValue.J_Shape;
+                    shapeJ[0, 1] = GridValue.J_Shape;
+                    shapeJ[1, 1] = GridValue.J_Shape;
+                    shapeJ[2, 1] = GridValue.J_Shape;
                     break;
             }
-            return figureJ;
+            return shapeJ;
         }
 
-        private GridValue[,] Z_Figure_Direction(Dir_Rotation direction)
+        private GridValue[,] Set_Z_ShapeValue(Dir_Rotation direction)
         {
-            GridValue[,] figureZ = new GridValue[3, 3];
+            GridValue[,] shapeZ = new GridValue[3, 3];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureZ[0, 0] = Tetris.GridValue.Z_Figure;
-                    figureZ[0, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 2] = Tetris.GridValue.Z_Figure;
+                    shapeZ[0, 0] = GridValue.Z_Shape;
+                    shapeZ[0, 1] = GridValue.Z_Shape;
+                    shapeZ[1, 1] = GridValue.Z_Shape;
+                    shapeZ[1, 2] = GridValue.Z_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureZ[0, 2] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 2] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[2, 1] = Tetris.GridValue.Z_Figure;
+                    shapeZ[0, 2] = GridValue.Z_Shape;
+                    shapeZ[1, 2] = GridValue.Z_Shape;
+                    shapeZ[1, 1] = GridValue.Z_Shape;
+                    shapeZ[2, 1] = GridValue.Z_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureZ[1, 0] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[2, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[2, 2] = Tetris.GridValue.Z_Figure;
+                    shapeZ[1, 0] = GridValue.Z_Shape;
+                    shapeZ[1, 1] = GridValue.Z_Shape;
+                    shapeZ[2, 1] = GridValue.Z_Shape;
+                    shapeZ[2, 2] = GridValue.Z_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureZ[0, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 1] = Tetris.GridValue.Z_Figure;
-                    figureZ[1, 0] = Tetris.GridValue.Z_Figure;
-                    figureZ[2, 0] = Tetris.GridValue.Z_Figure;
+                    shapeZ[0, 1] = GridValue.Z_Shape;
+                    shapeZ[1, 1] = GridValue.Z_Shape;
+                    shapeZ[1, 0] = GridValue.Z_Shape;
+                    shapeZ[2, 0] = GridValue.Z_Shape;
                     break;
             }
-            return figureZ;
+            return shapeZ;
         }
 
-        private GridValue[,] S_Figure_Direction(Dir_Rotation direction)
+        private GridValue[,] Set_S_ShapeValue(Dir_Rotation direction)
         {
-            GridValue[,] figureS = new GridValue[3, 3];
+            GridValue[,] shapeS = new GridValue[3, 3];
             switch (direction)
             {
                 case Dir_Rotation.Up:
-                    figureS[0, 2] = Tetris.GridValue.S_Figure;
-                    figureS[0, 1] = Tetris.GridValue.S_Figure;
-                    figureS[1, 1] = Tetris.GridValue.S_Figure;
-                    figureS[1, 0] = Tetris.GridValue.S_Figure;
+                    shapeS[0, 2] = GridValue.S_Shape;
+                    shapeS[0, 1] = GridValue.S_Shape;
+                    shapeS[1, 1] = GridValue.S_Shape;
+                    shapeS[1, 0] = GridValue.S_Shape;
                     break;
                 case Dir_Rotation.Right:
-                    figureS[0, 1] = Tetris.GridValue.S_Figure;
-                    figureS[1, 1] = Tetris.GridValue.S_Figure;
-                    figureS[1, 2] = Tetris.GridValue.S_Figure;
-                    figureS[2, 2] = Tetris.GridValue.S_Figure;
+                    shapeS[0, 1] = GridValue.S_Shape;
+                    shapeS[1, 1] = GridValue.S_Shape;
+                    shapeS[1, 2] = GridValue.S_Shape;
+                    shapeS[2, 2] = GridValue.S_Shape;
                     break;
                 case Dir_Rotation.Down:
-                    figureS[1, 2] = Tetris.GridValue.S_Figure;
-                    figureS[1, 1] = Tetris.GridValue.S_Figure;
-                    figureS[2, 1] = Tetris.GridValue.S_Figure;
-                    figureS[2, 0] = Tetris.GridValue.S_Figure;
+                    shapeS[1, 2] = GridValue.S_Shape;
+                    shapeS[1, 1] = GridValue.S_Shape;
+                    shapeS[2, 1] = GridValue.S_Shape;
+                    shapeS[2, 0] = GridValue.S_Shape;
                     break;
                 case Dir_Rotation.Left:
-                    figureS[0, 0] = Tetris.GridValue.S_Figure;
-                    figureS[1, 0] = Tetris.GridValue.S_Figure;
-                    figureS[1, 1] = Tetris.GridValue.S_Figure;
-                    figureS[2, 1] = Tetris.GridValue.S_Figure;
+                    shapeS[0, 0] = GridValue.S_Shape;
+                    shapeS[1, 0] = GridValue.S_Shape;
+                    shapeS[1, 1] = GridValue.S_Shape;
+                    shapeS[2, 1] = GridValue.S_Shape;
                     break;
             }
-            return figureS;
+            return shapeS;
         }
     }
 }
