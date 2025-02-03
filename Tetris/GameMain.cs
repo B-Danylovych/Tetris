@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -11,9 +12,9 @@ namespace Tetris
 
     public class GameMain
     {
+        private readonly int HiddenRowsOnTop = 2;
         public int Rows { get; }
         public int Columns { get; }
-        private readonly int HiddenRowOnTop = 2;
 
         public List<List<GridValue>> Grid { get; protected set; }
 
@@ -56,21 +57,23 @@ namespace Tetris
 
         public GameMain(int rows, int columns)
         {
-            Rows = rows + HiddenRowOnTop;
+            Rows = rows + HiddenRowsOnTop;
             Columns = columns;
             Grid = Enumerable.Range(0, Rows)
                 .Select(i => Enumerable.Repeat(GridValue.Empty, Columns).ToList()).ToList();
 
             SetBufferShape();
+
+            // для того щоб позбавитись від "non-null value" попереджень написав цей код:
+            CurrentShape = BufferShape.DeepCopy();
+            ProjectedShape = CurrentShape.DeepCopy();
         }
 
-        public void SetBufferShape()
-        {
-            GridValue shapeType = GetRandomShapeValue();
-            BufferShape = new Shape(shapeType, Dir_Rotation.Up);
-        }
+        [MemberNotNull(nameof(BufferShape))]
+        public void SetBufferShape() => 
+            BufferShape = new Shape(GetRandomShapeType(), Dir_Rotation.Up);
 
-        private GridValue GetRandomShapeValue()
+        private GridValue GetRandomShapeType()
         {
             Array gridValues = Enum.GetValues(typeof(GridValue));
             GridValue randomValue;
@@ -100,10 +103,11 @@ namespace Tetris
             int[] columsPosition = Enumerable.Range(0, shapeWidth)
                 .Select(i => (this.Columns / 2 - shapeWidth / 2) + i).ToArray();
 
-            CurrentShape.SetNewPositionOnGrid(rowsPosition, columsPosition);
-
-            ProjectedShape = GetProjectedDownShape(CurrentShape);
+            CurrentShape.SetNewPositionOnGrid(rowsPosition, columsPosition);            
         }
+
+        public void SetProjectedShape() => 
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
 
         private Shape GetProjectedDownShape(Shape curShape)
         {
@@ -133,7 +137,10 @@ namespace Tetris
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
                         projTilesFall.Add(ProjectTileDown
-                            (curShape.RowsPosition[r], curShape.ColumnsPosition[c]) + r);
+                            (curShape.RowsPosition[r], curShape.ColumnsPosition[c]) 
+                            + r);
+                        // добавлячи r отримуємо RowPosition[0] індекс
+                        // відносно проектованої плитки
                         break;
                     }
                 }
@@ -145,12 +152,9 @@ namespace Tetris
         private int ProjectTileDown(int rowPosOnGrid, int columnPosOnGrid)
         {
             for (int i = rowPosOnGrid; i >= 0; i--)
-            {
                 if (i == 0 || Grid[i - 1][columnPosOnGrid] != GridValue.Empty)
-                {
                     return i;
-                }
-            }
+
             throw new InvalidOperationException("The loop did not return a value.");
         }
 
@@ -174,7 +178,7 @@ namespace Tetris
         public void RemoveLines()
         {
             int linesRemoved = 0;
-            for (int r = 0; r < Grid.Count - HiddenRowOnTop; r++)
+            for (int r = 0; r < Grid.Count - HiddenRowsOnTop; r++)
             {
                 if (isLineFullCheck(r))
                 {
@@ -198,7 +202,7 @@ namespace Tetris
 
         private void SetNewScore(int linesRemoved)
         {
-            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
+            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=2000
             int addScore = (int)Math.Pow(linesRemoved * 10, 2);
             addScore += (linesRemoved < 4) ? 0 : 400;
             this.ScoreNum += addScore;
@@ -216,6 +220,16 @@ namespace Tetris
                 return false;
         }
 
+        public bool MoveLeft()
+        {
+            if (!CanMoveLeft(CurrentShape))
+                return false;
+
+            CurrentShape.MovePositionLeft();
+
+            return true;
+        }
+
         private bool CanMoveLeft(Shape curShape)
         {
             int shapeWidth = curShape.ColumnCount;
@@ -227,14 +241,9 @@ namespace Tetris
                 {
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        int rowOnGrid = curShape.RowsPosition[r];
-                        int columnOnGrid = curShape.ColumnsPosition[c];
-
-                        if (columnOnGrid == 0 || 
-                            Grid[rowOnGrid][columnOnGrid - 1] != GridValue.Empty)
-                        {
+                        if (!CanTileMoveLeft(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
                             return false;
-                        }
+
                         break;
                     }
                 }
@@ -242,19 +251,28 @@ namespace Tetris
             return true;
         }
 
-        public bool MoveLeft()
+        private bool CanTileMoveLeft(int rowPosOnGrid, int columnPosOnGrid)
         {
-            if (!CanMoveLeft(CurrentShape))
+            if (columnPosOnGrid == 0 ||
+                    Grid[rowPosOnGrid][columnPosOnGrid - 1] != GridValue.Empty)
+            {
                 return false;
-
-            CurrentShape.MovePositionLeft();
-
-            ProjectedShape = GetProjectedDownShape(CurrentShape);
+            }
 
             return true;
         }
 
-        private bool CanMoveRight(Shape curShape)
+        public bool MoveRight()
+        {
+            if (!CanShapeMoveRight(CurrentShape))
+                return false;
+
+            CurrentShape.MovePositionRight();
+
+            return true;
+        }
+
+        private bool CanShapeMoveRight(Shape curShape)
         {
             int shaprWidth = curShape.ColumnCount;
             int shapeHeight = curShape.RowCount;
@@ -265,14 +283,9 @@ namespace Tetris
                 {
                     if (curShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        int rowOnGrid = curShape.RowsPosition[r];
-                        int columnOnGrid = curShape.ColumnsPosition[c];
-
-                        if (columnOnGrid == Columns - 1 || 
-                            Grid[rowOnGrid][columnOnGrid + 1] != GridValue.Empty)
-                        {
+                        if (!CanTileMoveRight(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
                             return false;
-                        }
+                        
                         break;
                     }
                 }
@@ -280,22 +293,39 @@ namespace Tetris
             return true;
         }
 
-        public bool MoveRight()
+        private bool CanTileMoveRight(int rowPosOnGrid, int columnPosOnGrid)
         {
-            if (!CanMoveRight(CurrentShape))
+            if (columnPosOnGrid == Columns - 1 ||
+                    Grid[rowPosOnGrid][columnPosOnGrid + 1] != GridValue.Empty)
+            {
                 return false;
+            }
 
-            CurrentShape.MovePositionRight();
-
-            ProjectedShape = GetProjectedDownShape(CurrentShape);
             return true;
         }
 
-        private bool CanRotate(bool isClockwise, Shape curShape)
+        public enum DirectionOfRotation
+        {
+            isClockwise,
+            isCounterclockwise
+        }
+
+        public void Rotate(DirectionOfRotation direction)
+        {
+            if (!CanRotate(CurrentShape, direction))
+                return;
+
+            if (direction == DirectionOfRotation.isClockwise)
+                CurrentShape.RotateClockwise();
+            else
+                CurrentShape.RotateCounterclockwise();
+        }
+
+        private bool CanRotate(Shape curShape, DirectionOfRotation direction)
         {
             Shape rotationShape = curShape.DeepCopy();
 
-            if (isClockwise)
+            if (direction == DirectionOfRotation.isClockwise)
                 rotationShape.RotateClockwise();
             else
                 rotationShape.RotateCounterclockwise();
@@ -309,9 +339,8 @@ namespace Tetris
                 {
                     if (rotationShape.ShapeValue[r, c] != GridValue.Empty)
                     {
-                        if (rotationShape.RowsPosition[r] < 0 ||
-                            rotationShape.ColumnsPosition[c] < 0 || rotationShape.ColumnsPosition[c] >= Columns ||
-                            Grid[rotationShape.RowsPosition[r]][rotationShape.ColumnsPosition[c]] != GridValue.Empty)
+                        if (!IsTileOnEmptyGridValue(rotationShape.RowsPosition[r],
+                            rotationShape.ColumnsPosition[c]))
                         {
                             return false;
                         }
@@ -322,24 +351,22 @@ namespace Tetris
             return true;
         }
 
-        public void Rotate(bool isClockwise)
+        private bool IsTileOnEmptyGridValue(int rowPosOnGrid, int columnPosOnGrid)
         {
-            if (!CanRotate(isClockwise, CurrentShape))
-                return;
-
-            if(isClockwise)
-                CurrentShape.RotateClockwise();
+            if (rowPosOnGrid < 0 || columnPosOnGrid < 0 || columnPosOnGrid >= Columns
+                || Grid[rowPosOnGrid][columnPosOnGrid] != GridValue.Empty)
+            {
+                return false;
+            }
             else
-                CurrentShape.RotateCounterclockwise();
-
-            ProjectedShape = GetProjectedDownShape(CurrentShape);
+                return true;
         }
 
-        public void checkGameOver()
+        public void CheckGameOver()
         {
             for (int c = 0; c < Columns; c++)
             {
-                if (Grid[Rows - HiddenRowOnTop][c] != GridValue.Empty)
+                if (Grid[Rows - HiddenRowsOnTop - 1][c] != GridValue.Empty)
                     IsGameOver = true;
             }
         }

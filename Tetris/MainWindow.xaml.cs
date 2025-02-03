@@ -15,7 +15,6 @@ namespace Tetris
 {
     public partial class MainWindow : Window
     {
-
         private readonly int rows = 20, cols = 10;
         private readonly Image[,] gridImages;
         GameMain Game;
@@ -24,16 +23,20 @@ namespace Tetris
         private bool leaved = false;
         private bool windowActivated = true;
 
-        // якщо true на екрані буде top Score таблиця, якщо false top Line таблиця
-        private bool isScoreTable = true;
+        public enum ScoreOnWindow
+        {
+            isScore,
+            isLines
+        }
+        private ScoreOnWindow tableScore = ScoreOnWindow.isScore;
 
         private readonly TextBlock[] startScoresTable;
         private readonly TextBlock[] gameOverScoresTable;
         private readonly TextBlock[] menuLinesTable;
         private readonly TextBlock[] menuScoreTable;
 
-        string topScoresPath = "TxtFiles/TopScores.txt";
-        string topLinesPath = "TxtFiles/TopLines.txt";
+        private readonly string topScoresPath = "TxtFiles/TopScores.txt";
+        private readonly string topLinesPath = "TxtFiles/TopLines.txt";
 
         // локально зберігатиме значення найвищих показників
         // буде корисним якщо не існує текстових файлів
@@ -45,7 +48,7 @@ namespace Tetris
 
         private readonly Dictionary<GridValue, ImageSource> gridValToImage = new Dictionary<GridValue, ImageSource>()
         {
-            { GridValue.Empty, null},
+            { GridValue.Empty, Images.Empty},
             { GridValue.I_Shape, Images.I_Shape},
             { GridValue.O_Shape, Images.O_Shape},
             { GridValue.T_Shape, Images.T_Shape},
@@ -61,10 +64,10 @@ namespace Tetris
             gridImages = SetUpGrid();
 
             // в аргументах встановлюємо uniformGrif x:Name і relative шлях до текстового файлу
-            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, true);
-            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, true);
-            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, false);
-            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, true);
+            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, ScoreOnWindow.isScore);
+            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, ScoreOnWindow.isScore);
+            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, ScoreOnWindow.isLines);
+            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, ScoreOnWindow.isScore);
 
             Game = new GameMain(rows, cols);
         }
@@ -80,7 +83,7 @@ namespace Tetris
                 {
                     Image image = new Image
                     {
-                        Source = null
+                        Source = Images.Empty
                     };
                     images[r, c] = image;
                     TetrisGrid.Children.Add(image);
@@ -91,13 +94,14 @@ namespace Tetris
 
         // можна використовувати Binding для прив'язки тексту до всіх textBlock-ів одночасно,
         // проте я не можу його зрозуміти поки що
-        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path, bool isScoreTable)
+        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path, 
+            ScoreOnWindow table)
         {
             List<string> txtData;
-            if (isScoreTable)
-                txtData = ReadTxtFile(path, true);
+            if (table == ScoreOnWindow.isScore)
+                txtData = ReadTxtFile(path, ScoreOnWindow.isScore);
             else
-                txtData = ReadTxtFile(path, false);
+                txtData = ReadTxtFile(path, ScoreOnWindow.isLines);
 
 
             // вказувати кількість елементів [5] таким чином тут - це погана ідея, проте поки я так роблю
@@ -121,7 +125,7 @@ namespace Tetris
             return textBlocks;
         }
 
-        private List<string> ReadTxtFile(string path, bool isScoreTable)
+        private List<string> ReadTxtFile(string path, ScoreOnWindow table)
         {
             List<string> txtData;
 
@@ -130,7 +134,7 @@ namespace Tetris
             else
             {
                 //MessageBox.Show($"File {path} doesn't exists");
-                if(isScoreTable)
+                if(table == ScoreOnWindow.isScore)
                     txtData = topScores.ToList();
                 else
                     txtData = topLines.ToList();
@@ -156,21 +160,21 @@ namespace Tetris
         {
             List<string> txtData;
 
-            if (isScoreTable)
+            if (tableScore == ScoreOnWindow.isScore)
             {
-                isScoreTable = false;
+                tableScore = ScoreOnWindow.isLines;
                 StartScoresTitle.Text = "HIGH LINES";
                 GameOverScoresTitle.Text = "HIGH LINES";
 
-                txtData = ReadTxtFile(topLinesPath, isScoreTable);
+                txtData = ReadTxtFile(topLinesPath, tableScore);
             }
             else
             {
-                isScoreTable = true;
+                tableScore = ScoreOnWindow.isScore;
                 StartScoresTitle.Text = "HIGH SCORES";
                 GameOverScoresTitle.Text = "HIGH SCORES";
 
-                txtData = ReadTxtFile(topScoresPath, isScoreTable);
+                txtData = ReadTxtFile(topScoresPath, tableScore);
             }
 
             // поганий код, тому що усюди встановлюю 5 елементів вручну, в даному випадку startScoresTable.Length = 5,
@@ -271,27 +275,30 @@ namespace Tetris
             if (paused)
                 return;
 
-            bool canMove;
             switch (e.Key)
             {
                 case Key.A:
                 case Key.Left:
-                    canMove = Game.MoveLeft();
-                    Draw();
-                    if (canMove && leftIsPressed)
+                    bool isMovedLeft = Game.MoveLeft();
+                    if (isMovedLeft)
                     {
-                        Game.MoveLeft();
+                        if(leftIsPressed)
+                            Game.MoveLeft();
+
+                        Game.SetProjectedShape();
                         Draw();
-                    }
+                    }   
                     leftIsPressed = true;
                     break;
                 case Key.D:
                 case Key.Right:
-                    canMove = Game.MoveRight();
-                    Draw();
-                    if (canMove && rightIsPressed)
+                    bool isMovedRight = Game.MoveRight();
+                    if (isMovedRight)
                     {
-                        Game.MoveRight();
+                        if(rightIsPressed)
+                            Game.MoveRight();
+
+                        Game.SetProjectedShape();
                         Draw();
                     }
                     rightIsPressed = true;
@@ -302,11 +309,13 @@ namespace Tetris
                     break;
                 case Key.W:
                 case Key.Up:
-                    Game.Rotate(true);
+                    Game.Rotate(GameMain.DirectionOfRotation.isClockwise);
+                    Game.SetProjectedShape();
                     Draw();
                     break;
                 case Key.Z:
-                    Game.Rotate(false);
+                    Game.Rotate(GameMain.DirectionOfRotation.isCounterclockwise);
+                    Game.SetProjectedShape();
                     Draw();
                     break;
             }
@@ -383,10 +392,11 @@ namespace Tetris
                 {
                     Game.SetShapeOnGrid();
                     Game.RemoveLines();
-                    Game.checkGameOver();
+                    Game.CheckGameOver();
                     if (Game.IsGameOver)
                         return;
                     Game.SetCurrentShape();
+                    Game.SetProjectedShape();
                     Game.SetBufferShape();
                     DrawBufferShape();
                     if (Game.IterationTick > 20)
@@ -405,8 +415,8 @@ namespace Tetris
 
         private void NewTopScores()
         {
-            List<int> txtDataScore = ReadTxtFile(topScoresPath, true).ConvertAll(int.Parse);
-            List<int> txtDataLines = ReadTxtFile(topLinesPath, false).ConvertAll(int.Parse);
+            List<int> txtDataScore = ReadTxtFile(topScoresPath, ScoreOnWindow.isScore).ConvertAll(int.Parse);
+            List<int> txtDataLines = ReadTxtFile(topLinesPath, ScoreOnWindow.isLines).ConvertAll(int.Parse);
 
             if (Game.ScoreNum > txtDataScore.Last())
             {
@@ -427,7 +437,7 @@ namespace Tetris
             // поганий код з startScoresTable.Length(вкотре нагадаю) :)
             for (int i = 0; i < startScoresTable.Length; i++)
             {
-                if (this.isScoreTable)
+                if (tableScore == ScoreOnWindow.isScore)
                 {
                     startScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
                     gameOverScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
@@ -447,6 +457,7 @@ namespace Tetris
             DrawBufferShape();
             await ShowCountDown();
             Game.SetCurrentShape();
+            Game.SetProjectedShape();
             Game.SetBufferShape();
             DrawBufferShape();
             await GameLoop();
