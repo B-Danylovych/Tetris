@@ -15,6 +15,8 @@ namespace Tetris
 {
     public partial class MainWindow : Window
     {
+        private const int NUM_OF_TOP_SCORE_TABLE = 5;
+
         private readonly int rows = 20, cols = 10;
         private readonly Image[,] gridImages;
         GameMain Game;
@@ -23,17 +25,24 @@ namespace Tetris
         private bool leaved = false;
         private bool windowActivated = true;
 
-        public enum ScoreOnWindow
+        public enum Scores
         {
             isScore,
             isLines
         }
-        private ScoreOnWindow tableScore = ScoreOnWindow.isScore;
+        private Scores tableScore = Scores.isScore;
 
         private readonly TextBlock[] startScoresTable;
         private readonly TextBlock[] gameOverScoresTable;
         private readonly TextBlock[] menuLinesTable;
         private readonly TextBlock[] menuScoreTable;
+
+        private readonly TextBlock[] menuScoreUniformGrid;
+        private readonly TextBlock[] menuLineUniformGrid;
+        private readonly TextBlock[] otherCurrentUniformGrid;
+
+        private int[] TopScore { get; set; } = new int[NUM_OF_TOP_SCORE_TABLE];
+        private int[] TopLines { get; set; } = new int[NUM_OF_TOP_SCORE_TABLE];
 
         private readonly string topScoresPath = "TxtFiles/TopScores.txt";
         private readonly string topLinesPath = "TxtFiles/TopLines.txt";
@@ -64,10 +73,10 @@ namespace Tetris
             gridImages = SetUpGrid();
 
             // в аргументах встановлюємо uniformGrif x:Name і relative шлях до текстового файлу
-            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, ScoreOnWindow.isScore);
-            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, ScoreOnWindow.isScore);
-            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, ScoreOnWindow.isLines);
-            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, ScoreOnWindow.isScore);
+            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, Scores.isScore);
+            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, Scores.isScore);
+            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, Scores.isLines);
+            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, Scores.isScore);
 
             Game = new GameMain(rows, cols);
         }
@@ -91,17 +100,15 @@ namespace Tetris
             }
             return images;
         }
-
-        // можна використовувати Binding для прив'язки тексту до всіх textBlock-ів одночасно,
-        // проте я не можу його зрозуміти поки що
-        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path, 
-            ScoreOnWindow table)
+        
+        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path,
+            Scores table)
         {
             List<string> txtData;
-            if (table == ScoreOnWindow.isScore)
-                txtData = ReadTxtFile(path, ScoreOnWindow.isScore);
+            if (table == Scores.isScore)
+                txtData = ReadTxtFile(path, Scores.isScore);
             else
-                txtData = ReadTxtFile(path, ScoreOnWindow.isLines);
+                txtData = ReadTxtFile(path, Scores.isLines);
 
 
             // вказувати кількість елементів [5] таким чином тут - це погана ідея, проте поки я так роблю
@@ -125,7 +132,7 @@ namespace Tetris
             return textBlocks;
         }
 
-        private List<string> ReadTxtFile(string path, ScoreOnWindow table)
+        private List<string> ReadTxtFile(string path, Scores table)
         {
             List<string> txtData;
 
@@ -134,13 +141,77 @@ namespace Tetris
             else
             {
                 //MessageBox.Show($"File {path} doesn't exists");
-                if(table == ScoreOnWindow.isScore)
+                if (table == Scores.isScore)
                     txtData = topScores.ToList();
                 else
                     txtData = topLines.ToList();
             }
             return txtData;
         }
+
+        private bool CheckAndCorrectTxtFile(string path)
+        {
+            string[] txtData;
+
+            if (File.Exists(path))
+            {
+                txtData = File.ReadLines(path).Take(NUM_OF_TOP_SCORE_TABLE).ToArray();
+
+                if (txtData.Length < NUM_OF_TOP_SCORE_TABLE)
+                    txtData = ToFillMissingLines(txtData);
+
+                bool txtFileHasIntLines = isTxtFileHasIntLines(txtData);
+
+                if (!txtFileHasIntLines)
+                {
+                    txtData = GetResetTxtData();
+                    File.WriteAllLines(path, txtData);
+                }
+                
+                return true;
+            }
+            else
+            {
+                MessageBox.Show($"File {path} doesn't exists");
+                return false;
+            }
+        }
+
+        private string[] ToFillMissingLines(string[] incompleteTxtData)
+        {
+            List<string> completeTxtData = incompleteTxtData.ToList();
+
+            int linesToFill = NUM_OF_TOP_SCORE_TABLE - incompleteTxtData.Length;
+            for (int i = 0; i < linesToFill; i++)
+                completeTxtData.Add("0");
+
+            return completeTxtData.ToArray();
+        }
+
+        private bool isTxtFileHasIntLines(string[] txtData)
+        {
+            foreach (string line in txtData)
+                if (!int.TryParse(line, out _))
+                    return false;
+
+            return true;
+        }
+
+        private string[] GetResetTxtData()
+        {
+            string[] txtData = new string[NUM_OF_TOP_SCORE_TABLE];
+            Array.Fill(txtData, "0");
+
+            return txtData;
+        }
+
+        //private int[] ReadTxtFile(string path, Scores curTable)
+        //{
+        //    int[] txtData;
+
+        //    if (File.Exists(path))
+        //        txtData = File.ReadLines(path).Take(NUM_OF_TOP_SCORE_TABLE).ToArray();
+        //}
 
         private void RewriteTxtFile(List<string> newTxtData, string path, bool isScoreTable)
         {
@@ -160,9 +231,9 @@ namespace Tetris
         {
             List<string> txtData;
 
-            if (tableScore == ScoreOnWindow.isScore)
+            if (tableScore == Scores.isScore)
             {
-                tableScore = ScoreOnWindow.isLines;
+                tableScore = Scores.isLines;
                 StartScoresTitle.Text = "HIGH LINES";
                 GameOverScoresTitle.Text = "HIGH LINES";
 
@@ -170,7 +241,7 @@ namespace Tetris
             }
             else
             {
-                tableScore = ScoreOnWindow.isScore;
+                tableScore = Scores.isScore;
                 StartScoresTitle.Text = "HIGH SCORES";
                 GameOverScoresTitle.Text = "HIGH SCORES";
 
@@ -282,12 +353,12 @@ namespace Tetris
                     bool isMovedLeft = Game.MoveLeft();
                     if (isMovedLeft)
                     {
-                        if(leftIsPressed)
+                        if (leftIsPressed)
                             Game.MoveLeft();
 
                         Game.SetProjectedShape();
                         Draw();
-                    }   
+                    }
                     leftIsPressed = true;
                     break;
                 case Key.D:
@@ -295,7 +366,7 @@ namespace Tetris
                     bool isMovedRight = Game.MoveRight();
                     if (isMovedRight)
                     {
-                        if(rightIsPressed)
+                        if (rightIsPressed)
                             Game.MoveRight();
 
                         Game.SetProjectedShape();
@@ -415,8 +486,8 @@ namespace Tetris
 
         private void NewTopScores()
         {
-            List<int> txtDataScore = ReadTxtFile(topScoresPath, ScoreOnWindow.isScore).ConvertAll(int.Parse);
-            List<int> txtDataLines = ReadTxtFile(topLinesPath, ScoreOnWindow.isLines).ConvertAll(int.Parse);
+            List<int> txtDataScore = ReadTxtFile(topScoresPath, Scores.isScore).ConvertAll(int.Parse);
+            List<int> txtDataLines = ReadTxtFile(topLinesPath, Scores.isLines).ConvertAll(int.Parse);
 
             if (Game.ScoreNum > txtDataScore.Last())
             {
@@ -437,7 +508,7 @@ namespace Tetris
             // поганий код з startScoresTable.Length(вкотре нагадаю) :)
             for (int i = 0; i < startScoresTable.Length; i++)
             {
-                if (tableScore == ScoreOnWindow.isScore)
+                if (tableScore == Scores.isScore)
                 {
                     startScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
                     gameOverScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
