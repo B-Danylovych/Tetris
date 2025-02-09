@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.ComponentModel;
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +16,7 @@ namespace Tetris
 {
     public partial class MainWindow : Window
     {
-        private const int NUM_OF_TOP_SCORE_TABLE = 5;
+        private const int NUM_OF_TOP_TABLE = 5;
 
         private readonly int rows = 20, cols = 10;
         private readonly Image[,] gridImages;
@@ -25,24 +26,31 @@ namespace Tetris
         private bool leaved = false;
         private bool windowActivated = true;
 
-        public enum Scores
+        public enum TopType
         {
             isScore,
             isLines
         }
-        private Scores tableScore = Scores.isScore;
+        private TopType currentTopType = TopType.isScore;
 
         private readonly TextBlock[] startScoresTable;
         private readonly TextBlock[] gameOverScoresTable;
         private readonly TextBlock[] menuLinesTable;
         private readonly TextBlock[] menuScoreTable;
 
-        private readonly TextBlock[] menuScoreUniformGrid;
-        private readonly TextBlock[] menuLineUniformGrid;
+        public enum TopUniformGridType
+        {
+            isTopCurrent,
+            isTopScores,
+            isTopLines
+        }
+        private readonly TextBlock[] menuScoresUniformGrid;
+        private readonly TextBlock[] menuLinesUniformGrid;
         private readonly TextBlock[] otherCurrentUniformGrid;
 
-        private int[] TopScore { get; set; } = new int[NUM_OF_TOP_SCORE_TABLE];
-        private int[] TopLines { get; set; } = new int[NUM_OF_TOP_SCORE_TABLE];
+        private TopRecord[] TopScores { get; set; }
+        private TopRecord[] TopLines { get; set; }
+        private TopRecord[] TopCurrent { get; set; }
 
         private readonly string topScoresPath = "TxtFiles/TopScores.txt";
         private readonly string topLinesPath = "TxtFiles/TopLines.txt";
@@ -72,11 +80,16 @@ namespace Tetris
             InitializeComponent();
             gridImages = SetUpGrid();
 
+            TopScores = SetUpTopArrays(TopType.isScore);
+            TopLines = SetUpTopArrays(TopType.isLines);
+            TopCurrent = TopScores;
+
+
             // в аргументах встановлюємо uniformGrif x:Name і relative шлях до текстового файлу
-            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, Scores.isScore);
-            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, Scores.isScore);
-            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, Scores.isLines);
-            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, Scores.isScore);
+            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, TopType.isScore);
+            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, TopType.isScore);
+            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, TopType.isLines);
+            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, TopType.isScore);
 
             Game = new GameMain(rows, cols);
         }
@@ -100,15 +113,15 @@ namespace Tetris
             }
             return images;
         }
-        
+
         private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path,
-            Scores table)
+            TopType table)
         {
             List<string> txtData;
-            if (table == Scores.isScore)
-                txtData = ReadTxtFile(path, Scores.isScore);
+            if (table == TopType.isScore)
+                txtData = ReadTxtFile(path, TopType.isScore);
             else
-                txtData = ReadTxtFile(path, Scores.isLines);
+                txtData = ReadTxtFile(path, TopType.isLines);
 
 
             // вказувати кількість елементів [5] таким чином тут - це погана ідея, проте поки я так роблю
@@ -132,7 +145,98 @@ namespace Tetris
             return textBlocks;
         }
 
-        private List<string> ReadTxtFile(string path, Scores table)
+        private TopRecord[] SetUpTopArrays(TopType txtFileType)
+        {
+            TopRecord[] topRecords = new TopRecord[NUM_OF_TOP_TABLE];
+
+            bool isFileExist = CheckAndCorrectTxtFile(txtFileType);
+
+            if (isFileExist)
+                topRecords = ReadFile(txtFileType);
+            else
+                for (int i = 0; i < topRecords.Length; i++)
+                    topRecords[i] = new TopRecord();
+
+            return topRecords;
+        }
+
+        private void SetUpTextBlocks(TopUniformGridType table)
+        {
+            TopRecord[] topRecords;
+
+            if (table == TopUniformGridType.isTopCurrent)
+                topRecords = TopCurrent;
+            else if (table == TopUniformGridType.isTopScores)
+                topRecords = TopScores;
+            else
+                topRecords = TopLines;
+
+            TextBlock[] textBlocks = new TextBlock[NUM_OF_TOP_TABLE];
+            for (int i = 0; i < textBlocks.Length; i++)
+            {
+                TextBlock textBlock = new TextBlock
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    FontSize = 26,
+                    FontWeight = FontWeights.Bold,
+                };
+                Binding binding = new Binding("Value")
+                {
+                    Source = topRecords[i],
+                    Mode = BindingMode.TwoWay
+                };
+
+                textBlock.SetBinding(TextBlock.TextProperty, binding);
+
+                textBlocks[i] = textBlock;
+
+                if (table == TopUniformGridType.isTopCurrent)
+                {
+                    Border border = (Border)StartScoresTable.Children[i];
+                    border.Child = textBlock;
+
+                    TextBlock textBlock2 = new TextBlock
+                    {
+                        VerticalAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        FontSize = 26,
+                        FontWeight = FontWeights.Bold,
+                    };
+
+                    textBlock2.SetBinding(TextBlock.TextProperty, binding);
+
+                    border = (Border)GameOverScoresTable.Children[i];
+                    border.Child = textBlock2;
+                }
+                else if (table == TopUniformGridType.isTopScores)
+                {
+                    Border border = (Border)MenuScoreTable.Children[i];
+                    border.Child = textBlock;
+                }
+                else
+                {
+                    Border border = (Border)MenuLinesTable.Children[i];
+                    border.Child = textBlock;
+                }
+            }
+        }
+
+        private TopRecord[] ReadFile(TopType txtFileType)
+        {
+            string path = txtFileType == TopType.isScore ? topScoresPath : topLinesPath;
+
+            string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_TABLE).ToArray();
+
+            TopRecord[] parsedTxtData = new TopRecord[NUM_OF_TOP_TABLE];
+
+            for (int i = 0; i < parsedTxtData.Length; i++)
+                parsedTxtData[i].Value = int.Parse(txtData[i]);
+
+            return parsedTxtData;
+        }
+
+        private List<string> ReadTxtFile(string path, TopType table)
         {
             List<string> txtData;
 
@@ -141,7 +245,7 @@ namespace Tetris
             else
             {
                 //MessageBox.Show($"File {path} doesn't exists");
-                if (table == Scores.isScore)
+                if (table == TopType.isScore)
                     txtData = topScores.ToList();
                 else
                     txtData = topLines.ToList();
@@ -149,39 +253,37 @@ namespace Tetris
             return txtData;
         }
 
-        private bool CheckAndCorrectTxtFile(string path)
+        private bool CheckAndCorrectTxtFile(TopType txtFileType)
         {
-            string[] txtData;
+            string path = txtFileType == TopType.isScore ? topScoresPath : topLinesPath;
 
             if (File.Exists(path))
             {
-                txtData = File.ReadLines(path).Take(NUM_OF_TOP_SCORE_TABLE).ToArray();
+                string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_TABLE).ToArray();
 
-                if (txtData.Length < NUM_OF_TOP_SCORE_TABLE)
+                if (txtData.Length < NUM_OF_TOP_TABLE)
                     txtData = ToFillMissingLines(txtData);
 
                 bool txtFileHasIntLines = isTxtFileHasIntLines(txtData);
 
                 if (!txtFileHasIntLines)
-                {
                     txtData = GetResetTxtData();
-                    File.WriteAllLines(path, txtData);
-                }
-                
+                else
+                    txtData = SortTxtData(txtData);
+
+                File.WriteAllLines(path, txtData);
+
                 return true;
             }
             else
-            {
-                MessageBox.Show($"File {path} doesn't exists");
                 return false;
-            }
         }
 
         private string[] ToFillMissingLines(string[] incompleteTxtData)
         {
             List<string> completeTxtData = incompleteTxtData.ToList();
 
-            int linesToFill = NUM_OF_TOP_SCORE_TABLE - incompleteTxtData.Length;
+            int linesToFill = NUM_OF_TOP_TABLE - incompleteTxtData.Length;
             for (int i = 0; i < linesToFill; i++)
                 completeTxtData.Add("0");
 
@@ -199,10 +301,23 @@ namespace Tetris
 
         private string[] GetResetTxtData()
         {
-            string[] txtData = new string[NUM_OF_TOP_SCORE_TABLE];
+            string[] txtData = new string[NUM_OF_TOP_TABLE];
             Array.Fill(txtData, "0");
 
             return txtData;
+        }
+
+        private string[] SortTxtData(string[] txtData)
+        {
+            int[] txtIntData = new int[NUM_OF_TOP_TABLE];
+
+            for (int i = 0; i < txtData.Length; i++)
+                txtIntData[i] = int.Parse(txtData[i]);
+
+            Array.Sort(txtIntData);
+            Array.Reverse(txtIntData);
+
+            return txtIntData.Select(i => i.ToString()).ToArray();
         }
 
         //private int[] ReadTxtFile(string path, Scores curTable)
@@ -231,21 +346,21 @@ namespace Tetris
         {
             List<string> txtData;
 
-            if (tableScore == Scores.isScore)
+            if (currentTopType == TopType.isScore)
             {
-                tableScore = Scores.isLines;
+                currentTopType = TopType.isLines;
                 StartScoresTitle.Text = "HIGH LINES";
                 GameOverScoresTitle.Text = "HIGH LINES";
 
-                txtData = ReadTxtFile(topLinesPath, tableScore);
+                txtData = ReadTxtFile(topLinesPath, currentTopType);
             }
             else
             {
-                tableScore = Scores.isScore;
+                currentTopType = TopType.isScore;
                 StartScoresTitle.Text = "HIGH SCORES";
                 GameOverScoresTitle.Text = "HIGH SCORES";
 
-                txtData = ReadTxtFile(topScoresPath, tableScore);
+                txtData = ReadTxtFile(topScoresPath, currentTopType);
             }
 
             // поганий код, тому що усюди встановлюю 5 елементів вручну, в даному випадку startScoresTable.Length = 5,
@@ -486,8 +601,8 @@ namespace Tetris
 
         private void NewTopScores()
         {
-            List<int> txtDataScore = ReadTxtFile(topScoresPath, Scores.isScore).ConvertAll(int.Parse);
-            List<int> txtDataLines = ReadTxtFile(topLinesPath, Scores.isLines).ConvertAll(int.Parse);
+            List<int> txtDataScore = ReadTxtFile(topScoresPath, TopType.isScore).ConvertAll(int.Parse);
+            List<int> txtDataLines = ReadTxtFile(topLinesPath, TopType.isLines).ConvertAll(int.Parse);
 
             if (Game.ScoreNum > txtDataScore.Last())
             {
@@ -508,7 +623,7 @@ namespace Tetris
             // поганий код з startScoresTable.Length(вкотре нагадаю) :)
             for (int i = 0; i < startScoresTable.Length; i++)
             {
-                if (tableScore == Scores.isScore)
+                if (currentTopType == TopType.isScore)
                 {
                     startScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
                     gameOverScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
