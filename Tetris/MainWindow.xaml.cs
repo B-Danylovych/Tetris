@@ -277,7 +277,7 @@ namespace Tetris
                     break;
                 case Key.S:
                 case Key.Down:
-                    Game.IterationTick = 50;
+                    Game.ActivateFastDrop();
                     break;
                 case Key.W:
                 case Key.Up:
@@ -315,7 +315,7 @@ namespace Tetris
             {
                 case Key.S:
                 case Key.Down:
-                    Game.IterationTick = 500;
+                    Game.DeactivateFastDrop();
                     break;
                 case Key.A:
                 case Key.Left:
@@ -411,11 +411,7 @@ namespace Tetris
                         return;
                     Game.SetShapes();
                     DrawShapeInBufferGrid(Game.BufferShape);
-                    if (Game.IterationTick > 20)
-                        Game.IterationTick -= 10;
-
-                    if (Game.LockDelayTick > 100)
-                        Game.LockDelayTick -= 10;
+                    Game.IncreaseGameDifficulty();
 
                     ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
                     LineTextBlock.Text = $"Lines: {Game.LinesNum}";

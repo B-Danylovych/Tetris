@@ -58,8 +58,7 @@ namespace Tetris
 
         private ShapeMoveOption GetCurrentPositionMoveOption()
         {
-            return new ShapeMoveOption(ProjectedShape,
-                CurrentShape.ColumnsPosition[0], CalculateMoveOptionScore(ProjectedShape));
+            return new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape));
         }
 
         public int CalculateMoveOptionScore(Shape projFig)

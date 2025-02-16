@@ -18,29 +18,43 @@ namespace Tetris
 
         public List<List<GridValue>> Grid { get; protected set; }
 
-        private int _lockDelayTick = 500;
-        public int LockDelayTick
-        {
-            get => _lockDelayTick;
-            set
-            {
-                if (value > 0)
-                    _lockDelayTick = value;
-                else
-                    throw new ArgumentException("LockDelayTick must be a positive number");
-            }
-        }
+        private bool isFastDropActive = false;
 
         private int _iterationTick = 500;
         public int IterationTick
         {
-            get => _iterationTick;
-            set
+            get
+            {
+                if (isFastDropActive)
+                    return 20;
+                else
+                    return _iterationTick;
+            }
+            private set
             {
                 if (value > 0)
                     _iterationTick = value;
                 else
                     throw new ArgumentException("IterationTick must be a positive number");
+            }
+        }
+
+        private int _lockDelayTick = 500;
+        public int LockDelayTick
+        {
+            get 
+            {
+                if (isFastDropActive)
+                    return 100;
+                else
+                    return _lockDelayTick;
+            }
+            private set
+            {
+                if (value > 0)
+                    _lockDelayTick = value;
+                else
+                    throw new ArgumentException("LockDelayTick must be a positive number");
             }
         }
 
@@ -368,6 +382,25 @@ namespace Tetris
             }
             else
                 return true;
+        }
+
+        public void IncreaseGameDifficulty()
+        {
+            if (IterationTick > 20)
+                IterationTick--;
+
+            if (LockDelayTick > 100)
+                LockDelayTick --;
+        }
+
+        public void ActivateFastDrop()
+        {
+            isFastDropActive = true;
+        }
+
+        public void DeactivateFastDrop()
+        {
+            isFastDropActive = false;
         }
 
         public void CheckGameOver()
