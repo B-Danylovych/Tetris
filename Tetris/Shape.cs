@@ -13,7 +13,7 @@ namespace Tetris
     {
         private readonly GridValue ShapeType;
 
-        public GridValue[,] ShapeValue { get; private set; }
+        public GridValue[,] ShapeGrid { get; private set; }
         public Dir_Rotation Direction { get; private set; }
 
         public int RowCount { get; private set; }
@@ -26,7 +26,7 @@ namespace Tetris
         {
             Shape newShape = new Shape(this.ShapeType, this.Direction)
             {
-                ShapeValue = (GridValue[,])this.ShapeValue.Clone(),
+                ShapeGrid = (GridValue[,])this.ShapeGrid.Clone(),
                 RowCount = this.RowCount,
                 ColumnCount = this.ColumnCount,
                 RowsPosition = (int[])this.RowsPosition.Clone(),
@@ -42,19 +42,19 @@ namespace Tetris
                     ("Shape type cannot have the value GridValue.Empty");
             ShapeType = shapeType;
             SetShapeValue(direction);
-            RowCount = this.ShapeValue.GetLength(0);
-            ColumnCount = this.ShapeValue.GetLength(1);
+            RowCount = this.ShapeGrid.GetLength(0);
+            ColumnCount = this.ShapeGrid.GetLength(1);
             RowsPosition = new int[] { int.MinValue };
             ColumnsPosition = new int[] { int.MinValue };
         }
 
         public Shape(GridValue shapeType) : this(shapeType, Dir_Rotation.Up) { }
 
-        [MemberNotNull(nameof(ShapeValue))]
+        [MemberNotNull(nameof(ShapeGrid))]
         public void SetShapeValue(Dir_Rotation dir)
         {
             this.Direction = dir;
-            this.ShapeValue = ShapeType switch
+            this.ShapeGrid = ShapeType switch
             {
                 GridValue.O_Shape => set_O_ShapeValue(),
                 GridValue.I_Shape => Set_I_ShapeValue(Direction),
@@ -118,7 +118,7 @@ namespace Tetris
             for (int r = 0; r < RowCount; r++)
             {
                 if (Enumerable.Range(0, ColumnCount).Any(c =>
-                    ShapeValue[r, c] != GridValue.Empty))
+                    ShapeGrid[r, c] != GridValue.Empty))
                 {
                     height++;
                 }
@@ -134,7 +134,7 @@ namespace Tetris
             for (int c = 0; c < ColumnCount; c++)
             {
                 if (Enumerable.Range(0, RowCount).Any(r =>
-                    ShapeValue[r, c] != GridValue.Empty))
+                    ShapeGrid[r, c] != GridValue.Empty))
                 {
                     width++;
                 }

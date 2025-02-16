@@ -9,11 +9,12 @@ using System.Windows.Shapes;
 
 namespace Tetris
 {
-    public class AI_Grid : GameMain
+    public class AI_Game : GameMain
     {
-        public List<ShapeMoveOption> FigureMoveOptions { get; private set; }
+        public List<ShapeMoveOption> ShapeMoveOptions { get; private set; }
             = new List<ShapeMoveOption>();
-        public AI_Grid(int rows, int hiddenRowsOnTop, int cols,
+
+        public AI_Game(int rows, int hiddenRowsOnTop, int cols,
             Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid)
             : base(rows, hiddenRowsOnTop, cols)
         {
@@ -30,7 +31,7 @@ namespace Tetris
 
         public void CheckAllPositionsProjectedFigures()
         {
-            FigureMoveOptions.Add(GetCurrentPositionMoveOption());
+            ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
 
             int[] currentColumnsPosition = new int[CurrentShape.ColumnCount];
             Array.Copy(CurrentShape.ColumnsPosition, currentColumnsPosition, CurrentShape.ColumnCount);
@@ -49,7 +50,7 @@ namespace Tetris
             {
                 canMove = moveDirection();
                 if (canMove)
-                    FigureMoveOptions.Add(GetCurrentPositionMoveOption());
+                    ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
                 else
                     break;
             }
@@ -79,7 +80,7 @@ namespace Tetris
             {
                 for (int c = 0; c < projFig.ColumnCount; c++)
                 {
-                    if (projFig.ShapeValue[r, c] != GridValue.Empty)
+                    if (projFig.ShapeGrid[r, c] != GridValue.Empty)
                         return (projFig.RowsPosition[0] + r);
                 }
             }
@@ -140,7 +141,7 @@ namespace Tetris
             {
                 for (int r = projFig.RowCount - 1; r >= 0; r--)
                 {
-                    if (projFig.ShapeValue[r, c] != GridValue.Empty)
+                    if (projFig.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         bool isFromFullLine = false;
                         foreach (int item in fullLinesIndices)
@@ -179,7 +180,7 @@ namespace Tetris
                         if (c >= projFig.ColumnsPosition[0] &&
                         c <= projFig.ColumnsPosition[projFig.ColumnsPosition.Length - 1])
                         {
-                            if (projFig.ShapeValue[r,
+                            if (projFig.ShapeGrid[r,
                                 c - projFig.ColumnsPosition[0]] == GridValue.Empty)
                             {
                                 isFull = false;

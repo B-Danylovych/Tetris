@@ -142,7 +142,7 @@ namespace Tetris
             {
                 for (int r = shapeHeight - 1; r >= 0; r--)
                 {
-                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         projTilesFall.Add(ProjectTileDown
                             (curShape.RowsPosition[r], curShape.ColumnsPosition[c]) 
@@ -172,12 +172,12 @@ namespace Tetris
             {
                 for (int c = 0; c < CurrentShape.ColumnCount; c++)
                 {
-                    if (CurrentShape.ShapeValue[r, c] != GridValue.Empty)
+                    if (CurrentShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         int rowOnGrid = CurrentShape.RowsPosition[r];
                         int columnOnGrid = CurrentShape.ColumnsPosition[c];
 
-                        Grid[rowOnGrid][columnOnGrid] = CurrentShape.ShapeValue[r, c];
+                        Grid[rowOnGrid][columnOnGrid] = CurrentShape.ShapeGrid[r, c];
                     }
                 }
             }
@@ -247,7 +247,7 @@ namespace Tetris
             {
                 for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         if (!CanTileMoveLeft(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
                             return false;
@@ -289,7 +289,7 @@ namespace Tetris
             {
                 for (int c = shaprWidth - 1; c >= 0; c--)
                 {
-                    if (curShape.ShapeValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         if (!CanTileMoveRight(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
                             return false;
@@ -345,7 +345,7 @@ namespace Tetris
             {
                 for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (rotationShape.ShapeValue[r, c] != GridValue.Empty)
+                    if (rotationShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         if (!IsTileOnEmptyGridValue(rotationShape.RowsPosition[r],
                             rotationShape.ColumnsPosition[c]))

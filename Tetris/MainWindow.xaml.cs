@@ -446,7 +446,7 @@ namespace Tetris
                 {
                     Image image = new Image
                     {
-                        Source = gridValToImage[shape.ShapeValue[r, c]],
+                        Source = gridValToImage[shape.ShapeGrid[r, c]],
                         Width = tileSize,
                     };
                     BufferShapeGrid.Children.Add(image);
@@ -458,7 +458,7 @@ namespace Tetris
         {
             for (int r = 0; r < shape.RowCount; r++)
                 for (int c = 0; c < shape.ColumnCount; c++)
-                    if (shape.ShapeValue[r, c] != GridValue.Empty)
+                    if (shape.ShapeGrid[r, c] != GridValue.Empty)
                         return r;
 
             throw new InvalidOperationException("The loop did not return a value.");
@@ -488,7 +488,7 @@ namespace Tetris
             {
                 for (int c = 0; c < shape.ColumnCount; c++)
                 {
-                    GridValue shapeTile = shape.ShapeValue[r, c];
+                    GridValue shapeTile = shape.ShapeGrid[r, c];
                     int rowPosition = shape.RowsPosition[r];
                     int columnPosition = shape.ColumnsPosition[c];
 
