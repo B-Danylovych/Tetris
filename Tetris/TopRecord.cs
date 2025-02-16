@@ -18,10 +18,8 @@ namespace Tetris
             get { return _value; }
             set
             {
-                if (_value != value)
-                {
-                    _value = value; OnPropertyChanged("Value");
-                }
+                _value = value; 
+                OnPropertyChanged("Value");
             }
         }
 

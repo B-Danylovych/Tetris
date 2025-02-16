@@ -12,7 +12,7 @@ namespace Tetris
 
     public class GameMain
     {
-        private readonly int HiddenRowsOnTop = 2;
+        private int HiddenRowsOnTop { get; }
         public int Rows { get; }
         public int Columns { get; }
 
@@ -55,8 +55,9 @@ namespace Tetris
         public Shape CurrentShape { get; protected set; }
         public Shape ProjectedShape { get; protected set; }
 
-        public GameMain(int rows, int columns)
+        public GameMain(int rows, int hiddenRowsOnTop, int columns)
         {
+            HiddenRowsOnTop = hiddenRowsOnTop;
             Rows = rows + HiddenRowsOnTop;
             Columns = columns;
             Grid = Enumerable.Range(0, Rows)
@@ -69,9 +70,16 @@ namespace Tetris
             ProjectedShape = CurrentShape.DeepCopy();
         }
 
+        public void SetShapes()
+        {
+            SetCurrentShape();
+            SetProjectedShape();
+            SetBufferShape();
+        }
+
         [MemberNotNull(nameof(BufferShape))]
         public void SetBufferShape() => 
-            BufferShape = new Shape(GetRandomShapeType(), Dir_Rotation.Up);
+            BufferShape = new Shape(GetRandomShapeType());
 
         private GridValue GetRandomShapeType()
         {

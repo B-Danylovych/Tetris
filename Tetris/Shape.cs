@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Media.Media3D;
+using System.Windows.Shapes;
 
 namespace Tetris
 {
@@ -36,7 +37,7 @@ namespace Tetris
 
         public Shape(GridValue shapeType, Dir_Rotation direction)
         {
-            if(shapeType == GridValue.Empty)
+            if (shapeType == GridValue.Empty)
                 throw new InvalidOperationException
                     ("Shape type cannot have the value GridValue.Empty");
             ShapeType = shapeType;
@@ -46,6 +47,8 @@ namespace Tetris
             RowsPosition = new int[] { int.MinValue };
             ColumnsPosition = new int[] { int.MinValue };
         }
+
+        public Shape(GridValue shapeType) : this(shapeType, Dir_Rotation.Up) { }
 
         [MemberNotNull(nameof(ShapeValue))]
         public void SetShapeValue(Dir_Rotation dir)
@@ -78,7 +81,7 @@ namespace Tetris
         {
             int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
 
-            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == 0) 
+            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == 0)
                 ? (enumSize - 1) : (int)this.Direction - 1);
 
             SetShapeValue(newDir);
@@ -106,6 +109,38 @@ namespace Tetris
         {
             for (int i = 0; i < ColumnsPosition.Length; i++)
                 ColumnsPosition[i]++;
+        }
+
+        public int CalculateShapeHeight()
+        {
+            int height = 0;
+
+            for (int r = 0; r < RowCount; r++)
+            {
+                if (Enumerable.Range(0, ColumnCount).Any(c =>
+                    ShapeValue[r, c] != GridValue.Empty))
+                {
+                    height++;
+                }
+            }
+
+            return height;
+        }
+
+        public int CalculateShapeWidth()
+        {
+            int width = 0;
+
+            for (int c = 0; c < ColumnCount; c++)
+            {
+                if (Enumerable.Range(0, RowCount).Any(r =>
+                    ShapeValue[r, c] != GridValue.Empty))
+                {
+                    width++;
+                }
+            }
+
+            return width;
         }
 
         private GridValue[,] set_O_ShapeValue()

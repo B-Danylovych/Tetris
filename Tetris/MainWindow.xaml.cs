@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Immutable;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -16,53 +17,18 @@ namespace Tetris
 {
     public partial class MainWindow : Window
     {
-        private const int NUM_OF_TOP_TABLE = 5;
+        private const int NUM_OF_TOP_RECORDS_TABLE = 5;
 
-        private readonly int rows = 20, cols = 10;
-        private readonly Image[,] gridImages;
-        GameMain Game;
-
-        private bool paused = true;
-        private bool leaved = false;
-        private bool windowActivated = true;
-
-        public enum TopType
-        {
-            isScore,
-            isLines
-        }
-        private TopType currentTopType = TopType.isScore;
-
-        private readonly TextBlock[] startScoresTable;
-        private readonly TextBlock[] gameOverScoresTable;
-        private readonly TextBlock[] menuLinesTable;
-        private readonly TextBlock[] menuScoreTable;
-
-        public enum TopUniformGridType
-        {
-            isTopCurrent,
-            isTopScores,
-            isTopLines
-        }
-        private readonly TextBlock[] menuScoresUniformGrid;
-        private readonly TextBlock[] menuLinesUniformGrid;
-        private readonly TextBlock[] otherCurrentUniformGrid;
-
-        private TopRecord[] TopScores { get; set; }
-        private TopRecord[] TopLines { get; set; }
-        private TopRecord[] TopCurrent { get; set; }
+        private readonly int maxShapesHeightInUpDirection;
+        private readonly int maxShapesWidthInUpDirection;
 
         private readonly string topScoresPath = "TxtFiles/TopScores.txt";
         private readonly string topLinesPath = "TxtFiles/TopLines.txt";
 
-        // локально зберігатиме значення найвищих показників
-        // буде корисним якщо не існує текстових файлів
-        string[] topScores = new string[5] { "0", "0", "0", "0", "0" };
-        string[] topLines = new string[5] { "0", "0", "0", "0", "0" };
+        private readonly int rows = 20, columns = 10;
+        private readonly int hiddenRowsOnTop;
 
-        private bool leftIsPressed = false;
-        private bool rightIsPressed = false;
-
+        private readonly Image[,] gridImages;
         private readonly Dictionary<GridValue, ImageSource> gridValToImage = new Dictionary<GridValue, ImageSource>()
         {
             { GridValue.Empty, Images.Empty},
@@ -75,33 +41,57 @@ namespace Tetris
             { GridValue.J_Shape, Images.J_Shape},
         };
 
+        private GameMain Game;
+
+        private bool paused = true;
+        private bool leaved = false;
+        private bool windowActivated = true;
+
+        private bool leftIsPressed = false;
+        private bool rightIsPressed = false;
+
+        private TopRecord[] TopScores { get; set; }
+        private TopRecord[] TopLines { get; set; }
+        private TopRecord[] TopCurrent { get; set; }
+
+        public enum TopCurrentType
+        {
+            isScores,
+            isLines
+        }
+        private TopCurrentType currentTopType = TopCurrentType.isScores;
+
         public MainWindow()
         {
             InitializeComponent();
             gridImages = SetUpGrid();
 
-            TopScores = SetUpTopArrays(TopType.isScore);
-            TopLines = SetUpTopArrays(TopType.isLines);
-            TopCurrent = TopScores;
+            TopScores = GetOrCreateTopRecords(topScoresPath);
+            TopLines = GetOrCreateTopRecords(topLinesPath);
+            TopCurrent = GetOrCreateTopRecords(topScoresPath);
+            currentTopType = TopCurrentType.isScores;
 
+            BindTopRecordsToUniformGridBorders(TopScores, MenuScoreTable);
+            BindTopRecordsToUniformGridBorders(TopLines, MenuLinesTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, StartScoresTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, GameOverScoresTable);
 
-            // в аргументах встановлюємо uniformGrif x:Name і relative шлях до текстового файлу
-            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, TopType.isScore);
-            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, TopType.isScore);
-            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, TopType.isLines);
-            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, TopType.isScore);
+            var maxShapesSizesInUpDirection = GetMaxShapesSizesInUpDirection();
+            maxShapesHeightInUpDirection = maxShapesSizesInUpDirection.maxHeight;
+            maxShapesWidthInUpDirection = maxShapesSizesInUpDirection.maxWidth;
 
-            Game = new GameMain(rows, cols);
+            hiddenRowsOnTop = maxShapesHeightInUpDirection;
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
         }
 
         private Image[,] SetUpGrid()
         {
-            Image[,] images = new Image[rows, cols];
+            Image[,] images = new Image[rows, columns];
             TetrisGrid.Rows = rows;
-            TetrisGrid.Columns = cols;
+            TetrisGrid.Columns = columns;
             for (int r = rows - 1; r >= 0; r--)
             {
-                for (int c = 0; c < cols; c++)
+                for (int c = 0; c < columns; c++)
                 {
                     Image image = new Image
                     {
@@ -114,45 +104,14 @@ namespace Tetris
             return images;
         }
 
-        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path,
-            TopType table)
+        private TopRecord[] GetOrCreateTopRecords(string path)
         {
-            List<string> txtData;
-            if (table == TopType.isScore)
-                txtData = ReadTxtFile(path, TopType.isScore);
-            else
-                txtData = ReadTxtFile(path, TopType.isLines);
+            TopRecord[] topRecords = new TopRecord[NUM_OF_TOP_RECORDS_TABLE];
 
-
-            // вказувати кількість елементів [5] таким чином тут - це погана ідея, проте поки я так роблю
-            TextBlock[] textBlocks = new TextBlock[5];
-            for (int i = 0; i < textBlocks.Length; i++)
-            {
-                TextBlock textBlock = new TextBlock
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    FontSize = 26,
-                    FontWeight = FontWeights.Bold,
-                    Text = txtData[i]
-                };
-                textBlocks[i] = textBlock;
-
-                Border border = (Border)uniformGrid.Children[i];
-                border.Child = textBlock;
-            }
-
-            return textBlocks;
-        }
-
-        private TopRecord[] SetUpTopArrays(TopType txtFileType)
-        {
-            TopRecord[] topRecords = new TopRecord[NUM_OF_TOP_TABLE];
-
-            bool isFileExist = CheckAndCorrectTxtFile(txtFileType);
+            bool isFileExist = VerifyTxtFileExistenceAndCorrectData(path);
 
             if (isFileExist)
-                topRecords = ReadFile(txtFileType);
+                topRecords = ReadTxtFile(path);
             else
                 for (int i = 0; i < topRecords.Length; i++)
                     topRecords[i] = new TopRecord();
@@ -160,111 +119,51 @@ namespace Tetris
             return topRecords;
         }
 
-        private void SetUpTextBlocks(TopUniformGridType table)
+        private void BindTopRecordsToUniformGridBorders(TopRecord[] topRecords, UniformGrid uniformGrid)
         {
-            TopRecord[] topRecords;
-
-            if (table == TopUniformGridType.isTopCurrent)
-                topRecords = TopCurrent;
-            else if (table == TopUniformGridType.isTopScores)
-                topRecords = TopScores;
-            else
-                topRecords = TopLines;
-
-            TextBlock[] textBlocks = new TextBlock[NUM_OF_TOP_TABLE];
-            for (int i = 0; i < textBlocks.Length; i++)
+            for (int i = 0; i < topRecords.Length; i++)
             {
-                TextBlock textBlock = new TextBlock
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    FontSize = 26,
-                    FontWeight = FontWeights.Bold,
-                };
-                Binding binding = new Binding("Value")
-                {
-                    Source = topRecords[i],
-                    Mode = BindingMode.TwoWay
-                };
+                TextBlock textBlock = CreateTopRecordTextBlock();
+
+                Binding binding = CreateBindingToTopRecordValue(topRecords[i]);
 
                 textBlock.SetBinding(TextBlock.TextProperty, binding);
 
-                textBlocks[i] = textBlock;
-
-                if (table == TopUniformGridType.isTopCurrent)
-                {
-                    Border border = (Border)StartScoresTable.Children[i];
-                    border.Child = textBlock;
-
-                    TextBlock textBlock2 = new TextBlock
-                    {
-                        VerticalAlignment = VerticalAlignment.Center,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        FontSize = 26,
-                        FontWeight = FontWeights.Bold,
-                    };
-
-                    textBlock2.SetBinding(TextBlock.TextProperty, binding);
-
-                    border = (Border)GameOverScoresTable.Children[i];
-                    border.Child = textBlock2;
-                }
-                else if (table == TopUniformGridType.isTopScores)
-                {
-                    Border border = (Border)MenuScoreTable.Children[i];
-                    border.Child = textBlock;
-                }
-                else
-                {
-                    Border border = (Border)MenuLinesTable.Children[i];
-                    border.Child = textBlock;
-                }
+                AddTextBlockToBorder(textBlock, (Border)uniformGrid.Children[i]);
             }
         }
 
-        private TopRecord[] ReadFile(TopType txtFileType)
+        private TextBlock CreateTopRecordTextBlock() => new TextBlock
         {
-            string path = txtFileType == TopType.isScore ? topScoresPath : topLinesPath;
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            FontSize = 26,
+            FontWeight = FontWeights.Bold,
+        };
 
-            string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_TABLE).ToArray();
+        private Binding CreateBindingToTopRecordValue(TopRecord topRecord)
+        => new Binding("Value")
+        {
+            Source = topRecord,
+            Mode = BindingMode.TwoWay
+        };
 
-            TopRecord[] parsedTxtData = new TopRecord[NUM_OF_TOP_TABLE];
-
-            for (int i = 0; i < parsedTxtData.Length; i++)
-                parsedTxtData[i].Value = int.Parse(txtData[i]);
-
-            return parsedTxtData;
+        private void AddTextBlockToBorder(TextBlock textBlock, Border bord)
+        {
+            Border border = bord;
+            border.Child = textBlock;
         }
 
-        private List<string> ReadTxtFile(string path, TopType table)
+        private bool VerifyTxtFileExistenceAndCorrectData(string path)
         {
-            List<string> txtData;
-
-            if (File.Exists(path))
-                txtData = File.ReadLines(path).ToList();
-            else
-            {
-                //MessageBox.Show($"File {path} doesn't exists");
-                if (table == TopType.isScore)
-                    txtData = topScores.ToList();
-                else
-                    txtData = topLines.ToList();
-            }
-            return txtData;
-        }
-
-        private bool CheckAndCorrectTxtFile(TopType txtFileType)
-        {
-            string path = txtFileType == TopType.isScore ? topScoresPath : topLinesPath;
-
             if (File.Exists(path))
             {
-                string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_TABLE).ToArray();
+                string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_RECORDS_TABLE).ToArray();
 
-                if (txtData.Length < NUM_OF_TOP_TABLE)
+                if (txtData.Length < NUM_OF_TOP_RECORDS_TABLE)
                     txtData = ToFillMissingLines(txtData);
 
-                bool txtFileHasIntLines = isTxtFileHasIntLines(txtData);
+                bool txtFileHasIntLines = IsTxtFileHasIntLines(txtData);
 
                 if (!txtFileHasIntLines)
                     txtData = GetResetTxtData();
@@ -283,14 +182,14 @@ namespace Tetris
         {
             List<string> completeTxtData = incompleteTxtData.ToList();
 
-            int linesToFill = NUM_OF_TOP_TABLE - incompleteTxtData.Length;
+            int linesToFill = NUM_OF_TOP_RECORDS_TABLE - incompleteTxtData.Length;
             for (int i = 0; i < linesToFill; i++)
                 completeTxtData.Add("0");
 
             return completeTxtData.ToArray();
         }
 
-        private bool isTxtFileHasIntLines(string[] txtData)
+        private bool IsTxtFileHasIntLines(string[] txtData)
         {
             foreach (string line in txtData)
                 if (!int.TryParse(line, out _))
@@ -301,7 +200,7 @@ namespace Tetris
 
         private string[] GetResetTxtData()
         {
-            string[] txtData = new string[NUM_OF_TOP_TABLE];
+            string[] txtData = new string[NUM_OF_TOP_RECORDS_TABLE];
             Array.Fill(txtData, "0");
 
             return txtData;
@@ -309,151 +208,62 @@ namespace Tetris
 
         private string[] SortTxtData(string[] txtData)
         {
-            int[] txtIntData = new int[NUM_OF_TOP_TABLE];
+            int[] txtIntData = new int[NUM_OF_TOP_RECORDS_TABLE];
 
             for (int i = 0; i < txtData.Length; i++)
                 txtIntData[i] = int.Parse(txtData[i]);
 
-            Array.Sort(txtIntData);
-            Array.Reverse(txtIntData);
+            txtIntData = txtIntData.OrderByDescending(x => x).ToArray();
 
             return txtIntData.Select(i => i.ToString()).ToArray();
         }
 
-        //private int[] ReadTxtFile(string path, Scores curTable)
-        //{
-        //    int[] txtData;
-
-        //    if (File.Exists(path))
-        //        txtData = File.ReadLines(path).Take(NUM_OF_TOP_SCORE_TABLE).ToArray();
-        //}
-
-        private void RewriteTxtFile(List<string> newTxtData, string path, bool isScoreTable)
+        private TopRecord[] ReadTxtFile(string path)
         {
-            if (File.Exists(path))
-                File.WriteAllLines(path, newTxtData);
-            else
+            string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_RECORDS_TABLE).ToArray();
+
+            TopRecord[] parsedTxtData = new TopRecord[NUM_OF_TOP_RECORDS_TABLE];
+
+            for (int i = 0; i < parsedTxtData.Length; i++)
             {
-                //MessageBox.Show($"File {path} doesn't exists");
-                if (isScoreTable)
-                    topScores = newTxtData.ToArray();
-                else
-                    topLines = newTxtData.ToArray();
+                parsedTxtData[i] = new TopRecord();
+                parsedTxtData[i].Value = int.Parse(txtData[i]);
             }
+
+            return parsedTxtData;
         }
 
-        private void ArrowsButton_Click(object sender, RoutedEventArgs e)
+        private void RewriteTxtFileWithTopRecords(string path, TopRecord[] topRecords)
         {
-            List<string> txtData;
+            string[] topRecordsValues = new string[NUM_OF_TOP_RECORDS_TABLE];
 
-            if (currentTopType == TopType.isScore)
-            {
-                currentTopType = TopType.isLines;
-                StartScoresTitle.Text = "HIGH LINES";
-                GameOverScoresTitle.Text = "HIGH LINES";
+            for (int i = 0; i < topRecordsValues.Length; i++)
+                topRecordsValues[i] = topRecords[i].Value.ToString();
 
-                txtData = ReadTxtFile(topLinesPath, currentTopType);
-            }
-            else
-            {
-                currentTopType = TopType.isScore;
-                StartScoresTitle.Text = "HIGH SCORES";
-                GameOverScoresTitle.Text = "HIGH SCORES";
-
-                txtData = ReadTxtFile(topScoresPath, currentTopType);
-            }
-
-            // поганий код, тому що усюди встановлюю 5 елементів вручну, в даному випадку startScoresTable.Length = 5,
-            // попри те що проходжу також і по gameOverScoresTable
-            for (int i = 0; i < startScoresTable.Length; i++)
-            {
-                startScoresTable[i].Text = txtData[i];
-                gameOverScoresTable[i].Text = txtData[i];
-            }
+            File.WriteAllLines(path, topRecordsValues);
         }
 
-        private void DrawShapesOnGrid(Shape shape, double opacity)
+        private (int maxHeight, int maxWidth) GetMaxShapesSizesInUpDirection()
         {
-            for (int r = 0; r < shape.RowsPosition.Length; r++)
+            int maxHeight = 0;
+            int maxWidth = 0;
+
+            foreach (GridValue gridValue in Enum.GetValues(typeof(GridValue)))
             {
-                for (int c = 0; c < shape.ColumnsPosition.Length; c++)
+                if (gridValue != GridValue.Empty)
                 {
-                    if (shape.RowsPosition[r] > gridImages.GetLength(0) - 1 || shape.RowsPosition[r] < 0 ||
-                       shape.ColumnsPosition[c] > gridImages.GetLength(1) - 1 || shape.ColumnsPosition[c] < 0)
-                    {
-                        continue;
-                    }
-                    if (shape.ShapeValue[r, c] != GridValue.Empty)
-                    {
-                        gridImages[shape.RowsPosition[r], shape.ColumnsPosition[c]].Source = gridValToImage[shape.ShapeValue[r, c]];
-                        gridImages[shape.RowsPosition[r], shape.ColumnsPosition[c]].Opacity = opacity;
-                    }
-                }
-            }
-        }
+                    Shape shape = new Shape(gridValue);
 
-        private void DrawGrid()
-        {
-            for (int r = 0; r < gridImages.GetLength(0); r++)
-            {
-                for (int c = 0; c < gridImages.GetLength(1); c++)
-                {
-                    gridImages[r, c].Source = gridValToImage[this.Game.Grid[r][c]];
-                    gridImages[r, c].Opacity = 1;
-                }
-            }
-        }
+                    int currentHeight = shape.CalculateShapeHeight();
 
-        private void Draw()
-        {
-            DrawGrid();
-            DrawShapesOnGrid(Game.ProjectedShape, 0.2);
-            DrawShapesOnGrid(Game.CurrentShape, 1);
-        }
+                    int currentWidth = shape.CalculateShapeWidth();
 
-        public void DrawBufferShape()
-        {
-            Shape shape = Game.BufferShape;
-
-            int countCols = shape.ShapeValue.GetLength(1);
-            int countRows = 0;
-            int startRowsIndex = 0;
-
-            for (int r = 0; r < shape.ShapeValue.GetLength(0); r++)
-            {
-                for (int c = 0; c < countCols; c++)
-                {
-                    if (shape.ShapeValue[r, c] != GridValue.Empty)
-                    {
-                        if (countRows == 0)
-                            startRowsIndex = r;
-
-                        countRows++;
-                        break;
-                    }
+                    maxHeight = Math.Max(maxHeight, currentHeight);
+                    maxWidth = Math.Max(maxWidth, currentWidth);
                 }
             }
 
-            BufferShapeGrid.Children.Clear();
-
-            BufferShapeGrid.Columns = countCols;
-            BufferShapeGrid.Rows = countRows;
-
-            // ділимо на 4, оскільки максимальна ширина тетраміно фігури - 4, а саме у I Фігурі, яка "лежить"(має Direction - Top/Bottom)
-            double tileSize = BufferShapeBorder.ActualWidth / 4;
-
-            for (int r = startRowsIndex; r < startRowsIndex + countRows; r++)
-            {
-                for (int c = 0; c < countCols; c++)
-                {
-                    Image image = new Image
-                    {
-                        Source = gridValToImage[shape.ShapeValue[r, c]],
-                        Width = tileSize,
-                    };
-                    BufferShapeGrid.Children.Add(image);
-                }
-            }
+            return (maxHeight, maxWidth);
         }
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -465,28 +275,12 @@ namespace Tetris
             {
                 case Key.A:
                 case Key.Left:
-                    bool isMovedLeft = Game.MoveLeft();
-                    if (isMovedLeft)
-                    {
-                        if (leftIsPressed)
-                            Game.MoveLeft();
-
-                        Game.SetProjectedShape();
-                        Draw();
-                    }
+                    HandleLeftRightKeyPress(Game.MoveLeft, leftIsPressed);
                     leftIsPressed = true;
                     break;
                 case Key.D:
                 case Key.Right:
-                    bool isMovedRight = Game.MoveRight();
-                    if (isMovedRight)
-                    {
-                        if (rightIsPressed)
-                            Game.MoveRight();
-
-                        Game.SetProjectedShape();
-                        Draw();
-                    }
+                    HandleLeftRightKeyPress(Game.MoveRight, rightIsPressed);
                     rightIsPressed = true;
                     break;
                 case Key.S:
@@ -495,16 +289,32 @@ namespace Tetris
                     break;
                 case Key.W:
                 case Key.Up:
-                    Game.Rotate(GameMain.DirectionOfRotation.isClockwise);
-                    Game.SetProjectedShape();
-                    Draw();
+                    HandleRotatingKeyPress(GameMain.DirectionOfRotation.isClockwise);
                     break;
                 case Key.Z:
-                    Game.Rotate(GameMain.DirectionOfRotation.isCounterclockwise);
-                    Game.SetProjectedShape();
-                    Draw();
+                    HandleRotatingKeyPress(GameMain.DirectionOfRotation.isCounterclockwise);
                     break;
             }
+        }
+
+        private void HandleLeftRightKeyPress(Func<bool> moveInDirection, bool isKeyPressed)
+        {
+            bool isMoved = moveInDirection();
+            if (isMoved)
+            {
+                if (isKeyPressed)
+                    moveInDirection();
+
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
+        }
+
+        private void HandleRotatingKeyPress(GameMain.DirectionOfRotation directionOfRotation)
+        {
+            Game.Rotate(directionOfRotation);
+            Game.SetProjectedShape();
+            DrawGameGrid();
         }
 
         private void Window_KeyUp(object sender, KeyEventArgs e)
@@ -526,6 +336,35 @@ namespace Tetris
             }
         }
 
+        private async void Play_Click(object sender, RoutedEventArgs e)
+        {
+            StartBorder.Visibility = Visibility.Collapsed;
+            await GameStartToEnd();
+        }
+
+        private async Task GameStartToEnd()
+        {
+            DrawShapeInBufferGrid(Game.BufferShape);
+            await ShowCountDown();
+            Game.SetShapes();
+            DrawShapeInBufferGrid(Game.BufferShape);
+            await GameLoop();
+            if (Game.IsGameOver)
+            {
+                NewTopRecords();
+                GameOverScoreNum.Text = Game.ScoreNum.ToString();
+                GameOverLineNum.Text = Game.LinesNum.ToString();
+                Pause_AI_Grid.Visibility = Visibility.Collapsed;
+                MenuBorder.Visibility = Visibility.Visible;
+                GameOverBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ScoreTextBlock.Text = $"Score: 0";
+                LineTextBlock.Text = $"Lines: 0";
+            }
+        }
+
         private async Task ShowCountDown()
         {
             for (int i = 3; i >= 1; i--)
@@ -538,9 +377,7 @@ namespace Tetris
             Pause_AI_Grid.Visibility = Visibility.Visible;
             paused = false;
             if (!windowActivated)
-            {
                 PauseGame();
-            }
         }
 
         private async Task GameLoop()
@@ -555,10 +392,9 @@ namespace Tetris
                         return;
                     }
                     await Task.Delay(100);
-                    continue;
                 }
-
-                await RunGame();
+                else
+                    await RunGame();
             }
         }
 
@@ -581,85 +417,154 @@ namespace Tetris
                     Game.CheckGameOver();
                     if (Game.IsGameOver)
                         return;
-                    Game.SetCurrentShape();
-                    Game.SetProjectedShape();
-                    Game.SetBufferShape();
-                    DrawBufferShape();
+                    Game.SetShapes();
+                    DrawShapeInBufferGrid(Game.BufferShape);
                     if (Game.IterationTick > 20)
-                        Game.IterationTick--;
+                        Game.IterationTick -= 10;
 
                     if (Game.LockDelayTick > 100)
-                        Game.LockDelayTick--;
+                        Game.LockDelayTick -= 10;
 
                     ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
                     LineTextBlock.Text = $"Lines: {Game.LinesNum}";
                 }
             }
 
-            Draw();
+            DrawGameGrid();
         }
 
-        private void NewTopScores()
+        public void DrawShapeInBufferGrid(Shape shape)
         {
-            List<int> txtDataScore = ReadTxtFile(topScoresPath, TopType.isScore).ConvertAll(int.Parse);
-            List<int> txtDataLines = ReadTxtFile(topLinesPath, TopType.isLines).ConvertAll(int.Parse);
+            int shapeWidth = shape.ColumnCount;
+            int shapeHeight = shape.CalculateShapeHeight();
 
-            if (Game.ScoreNum > txtDataScore.Last())
-            {
-                txtDataScore[txtDataScore.Count - 1] = Game.ScoreNum;
-                txtDataScore.Sort();
-                txtDataScore.Reverse();
-            }
-            if (Game.LinesNum > txtDataLines.Last())
-            {
-                txtDataLines[txtDataLines.Count - 1] = Game.LinesNum;
-                txtDataLines.Sort();
-                txtDataLines.Reverse();
-            }
+            int startRowValueIndex = GetFirstNonEmptyRowIndexOfShapeValue(shape);
+            int endRowValueIndex = startRowValueIndex + shapeHeight;
 
-            RewriteTxtFile(txtDataScore.ConvertAll(i => i.ToString()), topScoresPath, true);
-            RewriteTxtFile(txtDataLines.ConvertAll(i => i.ToString()), topLinesPath, false);
+            BufferShapeGrid.Children.Clear();
 
-            // поганий код з startScoresTable.Length(вкотре нагадаю) :)
-            for (int i = 0; i < startScoresTable.Length; i++)
+            BufferShapeGrid.Columns = shapeWidth;
+            BufferShapeGrid.Rows = shapeHeight;
+
+            double tileSize = BufferShapeBorder.ActualWidth / maxShapesWidthInUpDirection;
+
+            for (int r = startRowValueIndex; r < endRowValueIndex; r++)
             {
-                if (currentTopType == TopType.isScore)
+                for (int c = 0; c < shapeWidth; c++)
                 {
-                    startScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
-                    gameOverScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
+                    Image image = new Image
+                    {
+                        Source = gridValToImage[shape.ShapeValue[r, c]],
+                        Width = tileSize,
+                    };
+                    BufferShapeGrid.Children.Add(image);
                 }
-                else
-                {
-                    startScoresTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
-                    gameOverScoresTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
-                }
-                menuScoreTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
-                menuLinesTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
             }
         }
 
-        private async Task StartToEnd()
+        private int GetFirstNonEmptyRowIndexOfShapeValue(Shape shape)
         {
-            DrawBufferShape();
-            await ShowCountDown();
-            Game.SetCurrentShape();
-            Game.SetProjectedShape();
-            Game.SetBufferShape();
-            DrawBufferShape();
-            await GameLoop();
-            if (Game.IsGameOver)
+            for (int r = 0; r < shape.RowCount; r++)
+                for (int c = 0; c < shape.ColumnCount; c++)
+                    if (shape.ShapeValue[r, c] != GridValue.Empty)
+                        return r;
+
+            throw new InvalidOperationException("The loop did not return a value.");
+        }
+
+        private void DrawGameGrid()
+        {
+            DrawGrid();
+            DrawShapesOnGridWithOpacity(Game.ProjectedShape, 0.2);
+            DrawShapesOnGridWithOpacity(Game.CurrentShape, 1);
+        }
+
+        private void DrawGrid()
+        {
+            for (int r = 0; r < gridImages.GetLength(0); r++)
             {
-                NewTopScores();
-                GameOverScoreNum.Text = Game.ScoreNum.ToString();
-                GameOverLineNum.Text = Game.LinesNum.ToString();
-                Pause_AI_Grid.Visibility = Visibility.Collapsed;
-                MenuBorder.Visibility = Visibility.Visible;
-                GameOverBorder.Visibility = Visibility.Visible;
+                for (int c = 0; c < gridImages.GetLength(1); c++)
+                {
+                    gridImages[r, c].Source = gridValToImage[this.Game.Grid[r][c]];
+                    gridImages[r, c].Opacity = 1;
+                }
+            }
+        }
+        private void DrawShapesOnGridWithOpacity(Shape shape, double opacity)
+        {
+            for (int r = 0; r < shape.RowCount; r++)
+            {
+                for (int c = 0; c < shape.ColumnCount; c++)
+                {
+                    GridValue shapeTile = shape.ShapeValue[r, c];
+                    int rowPosition = shape.RowsPosition[r];
+                    int columnPosition = shape.ColumnsPosition[c];
+
+                    if (shapeTile != GridValue.Empty && rowPosition < gridImages.GetLength(0))
+                    {
+                        gridImages[rowPosition, columnPosition].Source = gridValToImage[shapeTile];
+                        gridImages[rowPosition, columnPosition].Opacity = opacity;
+                    }
+                }
+            }
+        }
+
+        private void NewTopRecords()
+        {
+            if (Game.ScoreNum > TopScores.Last().Value)
+            {
+                AddNewScoreAndSortTopRecords(TopScores, Game.ScoreNum);
+
+                if (currentTopType == TopCurrentType.isScores)
+                    AddNewScoreAndSortTopRecords(TopCurrent, Game.ScoreNum);
+
+                if (File.Exists(topScoresPath))
+                    RewriteTxtFileWithTopRecords(topScoresPath, TopScores);
+            }
+            if (Game.LinesNum > TopLines.Last().Value)
+            {
+                AddNewScoreAndSortTopRecords(TopLines, Game.LinesNum);
+
+                if (currentTopType == TopCurrentType.isLines)
+                    AddNewScoreAndSortTopRecords(TopCurrent, Game.LinesNum);
+
+                if (File.Exists(topLinesPath))
+                    RewriteTxtFileWithTopRecords(topLinesPath, TopLines);
+            }
+        }
+
+        private void AddNewScoreAndSortTopRecords(TopRecord[] topRecords, int newScore)
+        {
+            int[] sortedRecords = topRecords.Select(x => x.Value).ToArray();
+
+            sortedRecords[sortedRecords.Length - 1] = newScore;
+            sortedRecords = sortedRecords.OrderDescending().ToArray();
+
+            for (int i = 0; i < topRecords.Length; i++)
+                topRecords[i].Value = sortedRecords[i];
+        }
+
+        private void ArrowsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (currentTopType == TopCurrentType.isScores)
+            {
+                for (int i = 0; i < TopCurrent.Length; i++)
+                    TopCurrent[i].Value = TopLines[i].Value;
+
+                currentTopType = TopCurrentType.isLines;
+
+                StartScoresTitle.Text = "HIGH LINES";
+                GameOverScoresTitle.Text = "HIGH LINES";
             }
             else
             {
-                ScoreTextBlock.Text = $"Score: 0";
-                LineTextBlock.Text = $"Lines: 0";
+                for (int i = 0; i < TopCurrent.Length; i++)
+                    TopCurrent[i].Value = TopScores[i].Value;
+
+                currentTopType = TopCurrentType.isScores;
+
+                StartScoresTitle.Text = "HIGH SCORES";
+                GameOverScoresTitle.Text = "HIGH SCORES";
             }
         }
 
@@ -669,15 +574,9 @@ namespace Tetris
             LineTextBlock.Text = $"Lines: 0";
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
             DrawGrid();
-            await StartToEnd();
-        }
-
-        private async void Play_Click(object sender, RoutedEventArgs e)
-        {
-            StartBorder.Visibility = Visibility.Collapsed;
-            await StartToEnd();
+            await GameStartToEnd();
         }
 
         private async void Resume_Click(object sender, RoutedEventArgs e)
@@ -687,24 +586,19 @@ namespace Tetris
             await ShowCountDown();
         }
 
-        private void Window_Activated(object sender, EventArgs e)
-        {
-            windowActivated = true;
-        }
+        private void Window_Activated(object sender, EventArgs e) 
+            => windowActivated = true;
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
             windowActivated = false;
-            if (Pause_AI_Grid.Visibility == Visibility.Visible)
-            {
+
+            if (!paused)
                 PauseGame();
-            }
         }
 
-        private void Pause_Click(object sender, RoutedEventArgs e)
-        {
-            PauseGame();
-        }
+        private void Pause_Click(object sender, RoutedEventArgs e) 
+            => PauseGame();
 
         private void PauseGame()
         {
@@ -739,9 +633,9 @@ namespace Tetris
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;
 
-            NewTopScores();
+            NewTopRecords();
 
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
             DrawGrid();
         }
 
@@ -763,7 +657,7 @@ namespace Tetris
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
             DrawGrid();
         }
     }

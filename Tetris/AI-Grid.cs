@@ -13,7 +13,9 @@ namespace Tetris
     {
         public List<ShapeMoveOption> FigureMoveOptions { get; private set; }
             = new List<ShapeMoveOption>();
-        public AI_Grid(int rows, int cols, Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid) : base(rows, cols)
+        public AI_Grid(int rows, int hiddenRowsOnTop, int cols,
+            Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid)
+            : base(rows, hiddenRowsOnTop, cols)
         {
             BufferShape = setFigureClone(bufferFigure);
             CurrentShape = setFigureClone(currentFigure);
