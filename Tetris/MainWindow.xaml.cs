@@ -54,13 +54,6 @@ namespace Tetris
         private TopRecord[] TopLines { get; set; }
         private TopRecord[] TopCurrent { get; set; }
 
-        public enum TopCurrentType
-        {
-            isScores,
-            isLines
-        }
-        private TopCurrentType currentTopType = TopCurrentType.isScores;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -68,8 +61,7 @@ namespace Tetris
 
             TopScores = GetOrCreateTopRecords(topScoresPath);
             TopLines = GetOrCreateTopRecords(topLinesPath);
-            TopCurrent = GetOrCreateTopRecords(topScoresPath);
-            currentTopType = TopCurrentType.isScores;
+            TopCurrent = TopScores;
 
             BindTopRecordsToUniformGridBorders(TopScores, MenuScoreTable);
             BindTopRecordsToUniformGridBorders(TopLines, MenuLinesTable);
@@ -513,27 +505,21 @@ namespace Tetris
         {
             if (Game.ScoreNum > TopScores.Last().Value)
             {
-                AddNewScoreAndSortTopRecords(TopScores, Game.ScoreNum);
-
-                if (currentTopType == TopCurrentType.isScores)
-                    AddNewScoreAndSortTopRecords(TopCurrent, Game.ScoreNum);
+                AddNewRecordAndSortTopRecords(TopScores, Game.ScoreNum);
 
                 if (File.Exists(topScoresPath))
                     RewriteTxtFileWithTopRecords(topScoresPath, TopScores);
             }
             if (Game.LinesNum > TopLines.Last().Value)
             {
-                AddNewScoreAndSortTopRecords(TopLines, Game.LinesNum);
-
-                if (currentTopType == TopCurrentType.isLines)
-                    AddNewScoreAndSortTopRecords(TopCurrent, Game.LinesNum);
+                AddNewRecordAndSortTopRecords(TopLines, Game.LinesNum);
 
                 if (File.Exists(topLinesPath))
                     RewriteTxtFileWithTopRecords(topLinesPath, TopLines);
             }
         }
 
-        private void AddNewScoreAndSortTopRecords(TopRecord[] topRecords, int newScore)
+        private void AddNewRecordAndSortTopRecords(TopRecord[] topRecords, int newScore)
         {
             int[] sortedRecords = topRecords.Select(x => x.Value).ToArray();
 
@@ -546,26 +532,19 @@ namespace Tetris
 
         private void ArrowsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (currentTopType == TopCurrentType.isScores)
+            if (TopCurrent == TopScores)
             {
-                for (int i = 0; i < TopCurrent.Length; i++)
-                    TopCurrent[i].Value = TopLines[i].Value;
-
-                currentTopType = TopCurrentType.isLines;
-
-                StartScoresTitle.Text = "HIGH LINES";
-                GameOverScoresTitle.Text = "HIGH LINES";
+                TopCurrent = TopLines;
+                StartScoresTitle.Text = GameOverScoresTitle.Text = "HIGH LINES";
             }
             else
             {
-                for (int i = 0; i < TopCurrent.Length; i++)
-                    TopCurrent[i].Value = TopScores[i].Value;
-
-                currentTopType = TopCurrentType.isScores;
-
-                StartScoresTitle.Text = "HIGH SCORES";
-                GameOverScoresTitle.Text = "HIGH SCORES";
+                TopCurrent = TopScores;
+                StartScoresTitle.Text = GameOverScoresTitle.Text = "HIGH SCORES";
             }
+
+            BindTopRecordsToUniformGridBorders(TopCurrent, StartScoresTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, GameOverScoresTable);
         }
 
         private async void PlayAgain_Click(object sender, RoutedEventArgs e)
