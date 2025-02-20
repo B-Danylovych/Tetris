@@ -15,21 +15,22 @@ namespace Tetris
             = new List<ShapeMoveOption>();
 
         public AI_Game(int rows, int hiddenRowsOnTop, int cols,
-            Shape bufferFigure, Shape currentFigure, Shape projectedFigure, List<List<GridValue>> grid)
+            Shape bufferShape, Shape currentShape, Shape projectedShape, List<List<GridValue>> grid)
             : base(rows, hiddenRowsOnTop, cols)
         {
-            BufferShape = setFigureClone(bufferFigure);
-            CurrentShape = setFigureClone(currentFigure);
-            ProjectedShape = setFigureClone(projectedFigure);
-            Grid = new List<List<GridValue>>(grid);
+            BufferShape = SetShapeClone(bufferShape);
+            CurrentShape = SetShapeClone(currentShape);
+            ProjectedShape = SetShapeClone(projectedShape);
+            Grid = SetGridClone(grid);
         }
 
-        public Shape setFigureClone(Shape cloneFigure)
-        {
-            return cloneFigure.DeepCopy();
-        }
+        private Shape SetShapeClone(Shape cloneShape)
+            => cloneShape.DeepCopy();
 
-        public void CheckAllPositionsProjectedFigures()
+        private List<List<GridValue>> SetGridClone(List<List<GridValue>> grid)
+            => new List<List<GridValue>>(grid);
+
+        public void CheckAllPositionsProjectedShapes()
         {
             ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
 
@@ -38,52 +39,79 @@ namespace Tetris
 
             CheckAllPositionsInDirection(MoveLeft);
 
-            //CurrentFigure.ColumnsPosition = currentColumnIndexOnGrid;
-
             CheckAllPositionsInDirection(MoveRight);
         }
 
         private void CheckAllPositionsInDirection(Func<bool> moveDirection)
         {
-            bool canMove = true;
-            while (true)
+            bool canMove = moveDirection();
+            while (canMove)
             {
+                ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
                 canMove = moveDirection();
-                if (canMove)
-                    ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
-                else
-                    break;
             }
         }
 
         private ShapeMoveOption GetCurrentPositionMoveOption()
-        {
-            return new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape));
-        }
-
-        public int CalculateMoveOptionScore(Shape projFig)
+            => new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape));
+        
+        public int CalculateMoveOptionScore(Shape projShape)
         {
             int score = 0;
 
-            score += CalculateHighFigureScore(projFig);
+            score += CalculateHighShapeScore(projShape);
 
-            int[] fullLinesIndices = CalculateFullLines(projFig);
+            int[] fullLinesIndices = CalculateFullLines(projShape);
             score -= fullLinesIndices.Length * 2;
 
             return score;
         }
 
-        private int CalculateHighFigureScore(Shape projFig)
+        private int CalculateHighShapeScore(Shape projShape)
         {
-            for (int r = 0; r < projFig.RowCount; r++)
+            for (int r = 0; r < projShape.RowCount; r++)
+                for (int c = 0; c < projShape.ColumnCount; c++)    
+                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
+                        return (projShape.RowsPosition[r]);
+            
+            throw new InvalidOperationException("The projectedShape is empty.");
+        }
+
+        private int[] CalculateFullLines(Shape projShape)
+        {
+            LinkedList<int> fullLines = new LinkedList<int>();
+
+            for (int r = 0; r < projShape.RowCount; r++)
             {
-                for (int c = 0; c < projFig.ColumnCount; c++)
+                int rowPosition = projShape.RowsPosition[r];
+                if (rowPosition < 0)
+                    break;
+
+                GridValue[] currentLine = Grid[rowPosition].ToArray();
+
+                for (int c = 0; c < projShape.ColumnCount; c++)
                 {
-                    if (projFig.ShapeGrid[r, c] != GridValue.Empty)
-                        return (projFig.RowsPosition[0] + r);
+                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
+                    {
+                        int columnPosition = projShape.ColumnsPosition[c];
+                        currentLine[columnPosition] = projShape.ShapeGrid[r, c];
+                    }    
                 }
+
+                if(IsLineFull(currentLine))
+                    fullLines.AddLast(rowPosition);
             }
-            throw new InvalidOperationException("The projectedFigure is empty.");
+
+            return fullLines.ToArray();
+        }
+
+        private bool IsLineFull(GridValue[] currentLine)
+        {
+            foreach (GridValue gridVal in currentLine)
+                if (gridVal == GridValue.Empty)
+                    return false;
+
+            return true;
         }
 
         private Tuple<int[], int>[] GetGaps(Shape projFig, int[] fullLinesIndices)
@@ -164,40 +192,6 @@ namespace Tetris
             }
 
             return lowestNotFromFullLinesTiles.ToArray();
-        }
-
-        private int[] CalculateFullLines(Shape projFig)
-        {
-            LinkedList<int> fullLines = new LinkedList<int>();
-            for (int r = 0; r < projFig.RowsPosition.Length; r++)
-            {
-                bool isFull = true;
-                for (int c = 0; c < Grid[projFig.RowsPosition[r]].Count; c++)
-                {
-                    if (Grid[projFig.RowsPosition[r]][c] == GridValue.Empty)
-                    {
-                        if (c >= projFig.ColumnsPosition[0] &&
-                        c <= projFig.ColumnsPosition[projFig.ColumnsPosition.Length - 1])
-                        {
-                            if (projFig.ShapeGrid[r,
-                                c - projFig.ColumnsPosition[0]] == GridValue.Empty)
-                            {
-                                isFull = false;
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            isFull = false;
-                            break;
-                        }
-                    }
-                }
-                if (isFull)
-                    fullLines.AddLast(projFig.RowsPosition[r]);
-            }
-
-            return fullLines.ToArray();
         }
     }
 }

@@ -393,16 +393,12 @@ namespace Tetris
                 LockDelayTick --;
         }
 
-        public void ActivateFastDrop()
-        {
-            isFastDropActive = true;
-        }
-
+        public void ActivateFastDrop() 
+            => isFastDropActive = true;
+        
         public void DeactivateFastDrop()
-        {
-            isFastDropActive = false;
-        }
-
+            => isFastDropActive = false;
+        
         public void CheckGameOver()
         {
             for (int c = 0; c < Columns; c++)
