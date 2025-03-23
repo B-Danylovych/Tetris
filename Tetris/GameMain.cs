@@ -332,15 +332,17 @@ namespace Tetris
             isCounterclockwise
         }
 
-        public void Rotate(DirectionOfRotation direction)
+        public bool Rotate(DirectionOfRotation direction)
         {
             if (!CanRotate(CurrentShape, direction))
-                return;
+                return false;
 
             if (direction == DirectionOfRotation.isClockwise)
                 CurrentShape.RotateClockwise();
             else
                 CurrentShape.RotateCounterclockwise();
+
+            return true;
         }
 
         private bool CanRotate(Shape curShape, DirectionOfRotation direction)

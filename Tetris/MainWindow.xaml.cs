@@ -304,9 +304,11 @@ namespace Tetris
 
         private void HandleRotatingKeyPress(GameMain.DirectionOfRotation directionOfRotation)
         {
-            Game.Rotate(directionOfRotation);
-            Game.SetProjectedShape();
-            DrawGameGrid();
+            if(Game.Rotate(directionOfRotation))
+            {
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
         }
 
         private void Window_KeyUp(object sender, KeyEventArgs e)

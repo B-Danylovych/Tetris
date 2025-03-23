@@ -31,16 +31,47 @@ namespace Tetris
         private List<List<GridValue>> SetGridClone(List<List<GridValue>> grid)
             => new List<List<GridValue>>(grid);
 
+        private void CheckAllDirectionOfRotationProjectedShape()
+        {
+            CheckAllPositionsProjectedShapes();
+
+            Dir_Rotation direction = CurrentShape.Direction;
+
+            int rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, 3);
+
+            CurrentShape.SetShapeValue(direction);
+
+            CheckRotateShapeWithAttempts(DirectionOfRotation.isCounterclockwise, rotationAttempts);
+        }
+
+        private int CheckRotateShapeWithAttempts(DirectionOfRotation directionOfRotation, int attempts)
+        {
+            int rotationAttempts = attempts;
+            bool canRotate = true;
+            while (rotationAttempts > 0 && canRotate)
+            {
+                canRotate = Rotate(directionOfRotation);
+                rotationAttempts--;
+
+                if (canRotate)
+                    CheckAllPositionsProjectedShapes();
+            }
+            return rotationAttempts;
+        }
+
         public void CheckAllPositionsProjectedShapes()
         {
             ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
 
-            int[] currentColumnsPosition = new int[CurrentShape.ColumnCount];
-            Array.Copy(CurrentShape.ColumnsPosition, currentColumnsPosition, CurrentShape.ColumnCount);
+            int[] currentColumnsPosition = CurrentShape.ColumnsPosition.ToArray();
 
             CheckAllPositionsInDirection(MoveLeft);
 
+            CurrentShape.SetNewPositionOnGrid(CurrentShape.RowsPosition, currentColumnsPosition.ToArray());
+
             CheckAllPositionsInDirection(MoveRight);
+
+            CurrentShape.SetNewPositionOnGrid(CurrentShape.RowsPosition, currentColumnsPosition.ToArray());
         }
 
         private void CheckAllPositionsInDirection(Func<bool> moveInDirection)
@@ -64,6 +95,8 @@ namespace Tetris
 
             int[] fullLinesIndices = CalculateFullLines(projShape);
             score -= fullLinesIndices.Length * 2;
+
+            score += CalculateGapsOfMoveOption(projShape, fullLinesIndices) * 3;
 
             return score;
         }
@@ -115,7 +148,7 @@ namespace Tetris
             return true;
         }
 
-        private void GetGapsOfMoveOption(Shape projShape, int[] fullLinesIndices)
+        private int CalculateGapsOfMoveOption(Shape projShape, int[] fullLinesIndices)
         {
             int numOfGaps = 0;
 
@@ -134,6 +167,8 @@ namespace Tetris
                         break;
                 }
             }
+
+            return numOfGaps;
         }
 
         private TilePosition[] GetLowestNotFromFullLinesTiles(Shape projShape, int[] fullLinesIndices)
