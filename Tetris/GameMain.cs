@@ -12,7 +12,7 @@ namespace Tetris
 
     public class GameMain
     {
-        private int HiddenRowsOnTop { get; }
+        protected int HiddenRowsOnTop { get; }
         public int Rows { get; }
         public int Columns { get; }
 
@@ -117,8 +117,8 @@ namespace Tetris
         {
             CurrentShape = BufferShape.DeepCopy();
 
-            int shapeWidth = CurrentShape.ColumnCount;
-            int shapeHeight = CurrentShape.RowCount;
+            int shapeWidth = CurrentShape.ColumnsCount;
+            int shapeHeight = CurrentShape.RowsCount;
 
             int[] rowsPosition = Enumerable.Range(0, shapeHeight)
                 .Select(i => this.Rows - 1 - i).ToArray();
@@ -137,7 +137,7 @@ namespace Tetris
 
             Shape projectedShape = curShape.DeepCopy();
 
-            int[] projRowsPosition = Enumerable.Range(0, projectedShape.RowCount)
+            int[] projRowsPosition = Enumerable.Range(0, projectedShape.RowsCount)
                 .Select(i => highestProjTile - i).ToArray();
 
             projectedShape.SetNewPositionOnGrid(projRowsPosition, projectedShape.ColumnsPosition);
@@ -149,8 +149,8 @@ namespace Tetris
         {
             List<int> projTilesFall = new();
 
-            int shapeWidth = curShape.ColumnCount;
-            int shapeHeight = curShape.RowCount;
+            int shapeWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
 
             for (int c = 0; c < shapeWidth; c++)
             {
@@ -182,9 +182,9 @@ namespace Tetris
 
         public void SetShapeOnGrid()
         {
-            for (int r = 0; r < CurrentShape.RowCount; r++)
+            for (int r = 0; r < CurrentShape.RowsCount; r++)
             {
-                for (int c = 0; c < CurrentShape.ColumnCount; c++)
+                for (int c = 0; c < CurrentShape.ColumnsCount; c++)
                 {
                     if (CurrentShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
@@ -254,8 +254,8 @@ namespace Tetris
 
         private bool CanMoveLeft(Shape curShape)
         {
-            int shapeWidth = curShape.ColumnCount;
-            int shapeHeight = curShape.RowCount;
+            int shapeWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
 
             for (int r = 0; r < shapeHeight; r++)
             {
@@ -296,8 +296,8 @@ namespace Tetris
 
         private bool CanShapeMoveRight(Shape curShape)
         {
-            int shaprWidth = curShape.ColumnCount;
-            int shapeHeight = curShape.RowCount;
+            int shaprWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
 
             for (int r = 0; r < shapeHeight; r++)
             {
@@ -354,8 +354,8 @@ namespace Tetris
             else
                 rotationShape.RotateCounterclockwise();
 
-            int shapeWidth = rotationShape.ColumnCount;
-            int shapeHeight = rotationShape.RowCount;
+            int shapeWidth = rotationShape.ColumnsCount;
+            int shapeHeight = rotationShape.RowsCount;
 
             for (int r = 0; r < shapeHeight; r++)
             {

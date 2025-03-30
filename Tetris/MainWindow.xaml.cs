@@ -246,9 +246,9 @@ namespace Tetris
                 {
                     Shape shape = new Shape(gridValue);
 
-                    int currentHeight = shape.CalculateShapeHeight();
+                    int currentHeight = shape.Height;
 
-                    int currentWidth = shape.CalculateShapeWidth();
+                    int currentWidth = shape.Width;
 
                     maxHeight = Math.Max(maxHeight, currentHeight);
                     maxWidth = Math.Max(maxWidth, currentWidth);
@@ -425,8 +425,8 @@ namespace Tetris
 
         public void DrawShapeInBufferGrid(Shape shape)
         {
-            int shapeWidth = shape.ColumnCount;
-            int shapeHeight = shape.CalculateShapeHeight();
+            int shapeWidth = shape.ColumnsCount;
+            int shapeHeight = shape.Height;
 
             int startRowValueIndex = GetFirstNonEmptyRowIndexOfShapeValue(shape);
             int endRowValueIndex = startRowValueIndex + shapeHeight;
@@ -454,8 +454,8 @@ namespace Tetris
 
         private int GetFirstNonEmptyRowIndexOfShapeValue(Shape shape)
         {
-            for (int r = 0; r < shape.RowCount; r++)
-                for (int c = 0; c < shape.ColumnCount; c++)
+            for (int r = 0; r < shape.RowsCount; r++)
+                for (int c = 0; c < shape.ColumnsCount; c++)
                     if (shape.ShapeGrid[r, c] != GridValue.Empty)
                         return r;
 
@@ -482,9 +482,9 @@ namespace Tetris
         }
         private void DrawShapesOnGridWithOpacity(Shape shape, double opacity)
         {
-            for (int r = 0; r < shape.RowCount; r++)
+            for (int r = 0; r < shape.RowsCount; r++)
             {
-                for (int c = 0; c < shape.ColumnCount; c++)
+                for (int c = 0; c < shape.ColumnsCount; c++)
                 {
                     GridValue shapeTile = shape.ShapeGrid[r, c];
                     int rowPosition = shape.RowsPosition[r];

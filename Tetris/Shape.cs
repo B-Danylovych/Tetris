@@ -16,8 +16,14 @@ namespace Tetris
         public GridValue[,] ShapeGrid { get; private set; }
         public Dir_Rotation Direction { get; private set; }
 
-        public int RowCount { get; private set; }
-        public int ColumnCount { get; private set; }
+        public int RowsCount { get; private set; }
+        public int ColumnsCount { get; private set; }
+
+        public int StartRowIndex { get; private set; }
+        public int StartColumnIndex { get; private set; }
+        public int Height { get; private set; }
+        public int Width { get; private set; }
+        
 
         public int[] RowsPosition { get; private set; }
         public int[] ColumnsPosition { get; private set; }
@@ -27,8 +33,14 @@ namespace Tetris
             Shape newShape = new Shape(this.ShapeType, this.Direction)
             {
                 ShapeGrid = (GridValue[,])this.ShapeGrid.Clone(),
-                RowCount = this.RowCount,
-                ColumnCount = this.ColumnCount,
+                RowsCount = this.RowsCount,
+                ColumnsCount = this.ColumnsCount,
+
+                StartRowIndex = this.StartRowIndex,
+                StartColumnIndex = this.StartColumnIndex,
+                Height = this.Height,
+                Width = this.Width,
+
                 RowsPosition = (int[])this.RowsPosition.Clone(),
                 ColumnsPosition = (int[])this.ColumnsPosition.Clone()
             };
@@ -42,8 +54,14 @@ namespace Tetris
                     ("Shape type cannot have the value GridValue.Empty");
             ShapeType = shapeType;
             SetShapeValue(direction);
-            RowCount = this.ShapeGrid.GetLength(0);
-            ColumnCount = this.ShapeGrid.GetLength(1);
+            RowsCount = this.ShapeGrid.GetLength(0);
+            ColumnsCount = this.ShapeGrid.GetLength(1);
+
+            StartRowIndex = GetStartRowIndex();
+            StartColumnIndex = GetStartColumnIndex();
+            Height = CalculateShapeHeight();
+            Width = CalculateShapeWidth();
+
             RowsPosition = new int[] { int.MinValue };
             ColumnsPosition = new int[] { int.MinValue };
         }
@@ -111,13 +129,45 @@ namespace Tetris
                 ColumnsPosition[i]++;
         }
 
-        public int CalculateShapeHeight()
+        private int GetStartRowIndex()
+        {
+            for (int r = 0; r < RowsCount; r++)
+            {
+                for (int c = 0; c < ColumnsCount; c++)
+                {
+                    if (ShapeGrid[r, c] != GridValue.Empty)
+                    {
+                        return r;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("The loop did not return a value.");
+        }
+
+        private int GetStartColumnIndex()
+        {
+            for (int c = 0; c < ColumnsCount; c++)
+            {
+                for (int r = 0; r < RowsCount; r++)
+                {
+                    if (ShapeGrid[r, c] != GridValue.Empty)
+                    {
+                        return c;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("The loop did not return a value.");
+        }
+
+        private int CalculateShapeHeight()
         {
             int height = 0;
 
-            for (int r = 0; r < RowCount; r++)
+            for (int r = 0; r < RowsCount; r++)
             {
-                if (Enumerable.Range(0, ColumnCount).Any(c =>
+                if (Enumerable.Range(0, ColumnsCount).Any(c =>
                     ShapeGrid[r, c] != GridValue.Empty))
                 {
                     height++;
@@ -127,13 +177,13 @@ namespace Tetris
             return height;
         }
 
-        public int CalculateShapeWidth()
+        private int CalculateShapeWidth()
         {
             int width = 0;
 
-            for (int c = 0; c < ColumnCount; c++)
+            for (int c = 0; c < ColumnsCount; c++)
             {
-                if (Enumerable.Range(0, RowCount).Any(r =>
+                if (Enumerable.Range(0, RowsCount).Any(r =>
                     ShapeGrid[r, c] != GridValue.Empty))
                 {
                     width++;

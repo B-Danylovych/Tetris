@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace Tetris
 {
-    struct TilePosition
+    public class CellPosition
     {
         public int X { get; set; }
         public int Y { get; set; }
 
-        public TilePosition(int row, int column)
+        public CellPosition(int row, int column)
         {
             X = column;
             Y = row;

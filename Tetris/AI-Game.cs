@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Shapes;
 
 namespace Tetris
@@ -15,6 +16,10 @@ namespace Tetris
         public List<ShapeMoveOption> ShapeMoveOptions { get; private set; }
             = new List<ShapeMoveOption>();
 
+        public int[] TopTilesOfColumns {  get; private set; }
+        public int[][] GapsInColumns { get; private set; }
+        public ParticalGap[][] ParticalGaps {  get; private set; }
+
         public AI_Game(int rows, int hiddenRowsOnTop, int cols,
             Shape bufferShape, Shape currentShape, Shape projectedShape, List<List<GridValue>> grid)
             : base(rows, hiddenRowsOnTop, cols)
@@ -23,6 +28,10 @@ namespace Tetris
             CurrentShape = SetShapeClone(currentShape);
             ProjectedShape = SetShapeClone(projectedShape);
             Grid = SetGridClone(grid);
+
+            TopTilesOfColumns = GetTopTilesOfColumns();
+            GapsInColumns = GetGapsInColumnsToTopTiles(TopTilesOfColumns);
+            ParticalGaps = GetParticalGapsInColumns(GapsInColumns);
         }
 
         private Shape SetShapeClone(Shape cloneShape)
@@ -31,13 +40,133 @@ namespace Tetris
         private List<List<GridValue>> SetGridClone(List<List<GridValue>> grid)
             => new List<List<GridValue>>(grid);
 
+        private int[] GetTopTilesOfColumns()
+        {
+            int[] topTiles = new int[Columns];
+            for (int c = 0; c < Columns; c++)
+            {
+                int topTile = -1;
+                for (int r = 0; r < (Rows - HiddenRowsOnTop - 1); r++)
+                {
+                    if (Grid[r][c] != GridValue.Empty)
+                    {
+                        topTile = r;
+                    }
+                }
+                topTiles[c] = topTile;
+            }
+            return topTiles;
+        }
+
+        private int[][] GetGapsInColumnsToTopTiles(int[] topTilesOfColumns)
+        {
+            int[][] gapsInColumns = new int[Columns][];
+            for (int c = 0; c < Columns; c++)
+            {
+                List<int> gapsInColumn = new List<int>();
+                for (int r = 0; r < topTilesOfColumns[c]; r++)
+                {
+                    if (Grid[r][c] == GridValue.Empty)
+                    {
+                        gapsInColumn.Add(r);
+                    }
+                }
+                gapsInColumns[c] = gapsInColumn.ToArray();
+            }
+            return gapsInColumns;
+        }
+
+        private ParticalGap[][] GetParticalGapsInColumns(int[][] gapsInColumns)
+        {
+            List<ParticalGap[]> particalGaps = new List<ParticalGap[]>();
+            for (int c = 0; c < gapsInColumns.Length; c++)
+            {
+                if (gapsInColumns[c].Length == 0)
+                    continue;
+
+                CellPosition topGap = new CellPosition(gapsInColumns[c][gapsInColumns[c].Length - 1], c);
+
+                if (IsGapPracticalInLeft(topGap))
+                {
+                    particalGaps.Add(
+                        GetParticalGapsOfColumnInDirection(c, gapsInColumns[c], ParticalGap.SideAccess.Left)
+                    );
+                }
+                else if (IsGapPracticalInRight(topGap))
+                {
+                    particalGaps.Add(
+                        GetParticalGapsOfColumnInDirection(c, gapsInColumns[c], ParticalGap.SideAccess.Right)
+                    );
+                }
+            }
+            return particalGaps.ToArray();
+        }
+
+        private ParticalGap[] GetParticalGapsOfColumnInDirection
+            (int column, int[] gapsInColumn, ParticalGap.SideAccess sideAccess)
+        {
+            List<ParticalGap> particalGapsInColumn = new List<ParticalGap>();
+
+            bool nextGapsIsPartical = false;
+
+            Func<CellPosition, bool> CheckInDirection = (sideAccess == ParticalGap.SideAccess.Left) 
+                ? IsGapPracticalInLeft : IsGapPracticalInRight;
+
+            for (int r = 0; r < gapsInColumn.Length; r++)
+            {
+                if (nextGapsIsPartical)
+                {
+                    particalGapsInColumn.Add(new ParticalGap(gapsInColumn[r], column, sideAccess));
+                    continue;
+                }
+
+                CellPosition gap = new CellPosition(gapsInColumn[r], column);
+                if (CheckInDirection(gap))
+                {
+                    nextGapsIsPartical = true;
+                    particalGapsInColumn.Add(new ParticalGap(gapsInColumn[r], column, sideAccess));
+                }
+            }
+            return particalGapsInColumn.ToArray();
+        }
+
+        private bool IsGapPracticalInLeft(CellPosition gap)
+        {
+            if (gap.X <= 1)
+                return false;
+
+            if (gap.Y <= TopTilesOfColumns[gap.X - 1] ||
+                gap.Y <= TopTilesOfColumns[gap.X - 2])
+            {
+                return false;
+            }
+            else
+                return true;
+        }
+
+        private bool IsGapPracticalInRight(CellPosition gap)
+        {
+            if (gap.X >= Columns - 2)
+                return false;
+
+            if (gap.Y <= TopTilesOfColumns[gap.X + 1] ||
+                gap.Y <= TopTilesOfColumns[gap.X + 2])
+            {
+                return false;
+            }
+            else
+                return true;
+        }
+
         private void CheckAllDirectionOfRotationProjectedShape()
         {
             CheckAllPositionsProjectedShapes();
 
             Dir_Rotation direction = CurrentShape.Direction;
 
-            int rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, 3);
+            int rotationAttempts = 3;
+
+            rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, rotationAttempts);
 
             CurrentShape.SetShapeValue(direction);
 
@@ -74,13 +203,13 @@ namespace Tetris
             CurrentShape.SetNewPositionOnGrid(CurrentShape.RowsPosition, currentColumnsPosition.ToArray());
         }
 
-        private void CheckAllPositionsInDirection(Func<bool> moveInDirection)
+        private void CheckAllPositionsInDirection(Func<bool> MoveInDirection)
         {
-            bool canMove = moveInDirection();
+            bool canMove = MoveInDirection();
             while (canMove)
             {
                 ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
-                canMove = moveInDirection();
+                canMove = MoveInDirection();
             }
         }
 
@@ -103,8 +232,8 @@ namespace Tetris
 
         private int CalculateHighShapeScore(Shape projShape)
         {
-            for (int r = 0; r < projShape.RowCount; r++)
-                for (int c = 0; c < projShape.ColumnCount; c++)
+            for (int r = 0; r < projShape.RowsCount; r++)
+                for (int c = 0; c < projShape.ColumnsCount; c++)
                     if (projShape.ShapeGrid[r, c] != GridValue.Empty)
                         return (projShape.RowsPosition[r]);
 
@@ -115,7 +244,7 @@ namespace Tetris
         {
             List<int> fullLines = new List<int>();
 
-            for (int r = 0; r < projShape.RowCount; r++)
+            for (int r = 0; r < projShape.RowsCount; r++)
             {
                 int rowPosition = projShape.RowsPosition[r];
                 if (rowPosition < 0)
@@ -123,7 +252,7 @@ namespace Tetris
 
                 GridValue[] currentLine = Grid[rowPosition].ToArray();
 
-                for (int c = 0; c < projShape.ColumnCount; c++)
+                for (int c = 0; c < projShape.ColumnsCount; c++)
                 {
                     if (projShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
@@ -152,9 +281,9 @@ namespace Tetris
         {
             int numOfGaps = 0;
 
-            TilePosition[] lowestShapeTiles = GetLowestNotFromFullLinesTiles(projShape, fullLinesIndices);
+            CellPosition[] lowestShapeTiles = GetLowestNotFromFullLinesTiles(projShape, fullLinesIndices);
 
-            foreach (TilePosition tile in lowestShapeTiles)
+            foreach (CellPosition tile in lowestShapeTiles)
             {
                 for (int r = tile.Y - 1; r >= 0; r--)
                 {
@@ -171,21 +300,21 @@ namespace Tetris
             return numOfGaps;
         }
 
-        private TilePosition[] GetLowestNotFromFullLinesTiles(Shape projShape, int[] fullLinesIndices)
+        private CellPosition[] GetLowestNotFromFullLinesTiles(Shape projShape, int[] fullLinesIndices)
         {
-            List<TilePosition> lowestShapeTiles = new List<TilePosition>();
+            List<CellPosition> lowestShapeTiles = new List<CellPosition>();
 
             int[] reverseRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
             Array.Reverse(reverseRowIndices);
 
-            for (int c = 0; c < projShape.ColumnCount; c++)
+            for (int c = 0; c < projShape.ColumnsCount; c++)
             {
                 foreach (int r in reverseRowIndices)
                 {
                     if (projShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
                         lowestShapeTiles.Add(
-                            new TilePosition(projShape.RowsPosition[r], projShape.ColumnsPosition[c])
+                            new CellPosition(projShape.RowsPosition[r], projShape.ColumnsPosition[c])
                         );
                         break;
                     }
