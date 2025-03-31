@@ -17,8 +17,8 @@ namespace Tetris
             = new List<ShapeMoveOption>();
 
         public int[] TopTilesOfColumns {  get; private set; }
-        public int[][] GapsInColumns { get; private set; }
-        public ParticalGap[][] ParticalGaps {  get; private set; }
+        public int[][] Gaps { get; private set; }
+        public AccessibleGap[][] AccessibleGaps {  get; private set; }
 
         public AI_Game(int rows, int hiddenRowsOnTop, int cols,
             Shape bufferShape, Shape currentShape, Shape projectedShape, List<List<GridValue>> grid)
@@ -30,8 +30,8 @@ namespace Tetris
             Grid = SetGridClone(grid);
 
             TopTilesOfColumns = GetTopTilesOfColumns();
-            GapsInColumns = GetGapsInColumnsToTopTiles(TopTilesOfColumns);
-            ParticalGaps = GetParticalGapsInColumns(GapsInColumns);
+            Gaps = GetGapsToTopTiles(TopTilesOfColumns);
+            AccessibleGaps = GetAccessibleGaps(Gaps);
         }
 
         private Shape SetShapeClone(Shape cloneShape)
@@ -58,9 +58,9 @@ namespace Tetris
             return topTiles;
         }
 
-        private int[][] GetGapsInColumnsToTopTiles(int[] topTilesOfColumns)
+        private int[][] GetGapsToTopTiles(int[] topTilesOfColumns)
         {
-            int[][] gapsInColumns = new int[Columns][];
+            int[][] gaps = new int[Columns][];
             for (int c = 0; c < Columns; c++)
             {
                 List<int> gapsInColumn = new List<int>();
@@ -71,66 +71,66 @@ namespace Tetris
                         gapsInColumn.Add(r);
                     }
                 }
-                gapsInColumns[c] = gapsInColumn.ToArray();
+                gaps[c] = gapsInColumn.ToArray();
             }
-            return gapsInColumns;
+            return gaps;
         }
 
-        private ParticalGap[][] GetParticalGapsInColumns(int[][] gapsInColumns)
+        private AccessibleGap[][] GetAccessibleGaps(int[][] gaps)
         {
-            List<ParticalGap[]> particalGaps = new List<ParticalGap[]>();
-            for (int c = 0; c < gapsInColumns.Length; c++)
+            List<AccessibleGap[]> accessibleGaps = new List<AccessibleGap[]>();
+            for (int c = 0; c < gaps.Length; c++)
             {
-                if (gapsInColumns[c].Length == 0)
+                if (gaps[c].Length == 0)
                     continue;
 
-                CellPosition topGap = new CellPosition(gapsInColumns[c][gapsInColumns[c].Length - 1], c);
+                CellPosition topGap = new CellPosition(gaps[c][gaps[c].Length - 1], c);
 
-                if (IsGapPracticalInLeft(topGap))
+                if (IsGapAccessibleInLeft(topGap))
                 {
-                    particalGaps.Add(
-                        GetParticalGapsOfColumnInDirection(c, gapsInColumns[c], ParticalGap.SideAccess.Left)
+                    accessibleGaps.Add(
+                        GetAccessibleGapsOfColumnInDirection(c, gaps[c], AccessibleGap.SideAccess.Left)
                     );
                 }
-                else if (IsGapPracticalInRight(topGap))
+                else if (IsGapAccessibleInRight(topGap))
                 {
-                    particalGaps.Add(
-                        GetParticalGapsOfColumnInDirection(c, gapsInColumns[c], ParticalGap.SideAccess.Right)
+                    accessibleGaps.Add(
+                        GetAccessibleGapsOfColumnInDirection(c, gaps[c], AccessibleGap.SideAccess.Right)
                     );
                 }
             }
-            return particalGaps.ToArray();
+            return accessibleGaps.ToArray();
         }
 
-        private ParticalGap[] GetParticalGapsOfColumnInDirection
-            (int column, int[] gapsInColumn, ParticalGap.SideAccess sideAccess)
+        private AccessibleGap[] GetAccessibleGapsOfColumnInDirection
+            (int column, int[] gapsInColumn, AccessibleGap.SideAccess sideAccess)
         {
-            List<ParticalGap> particalGapsInColumn = new List<ParticalGap>();
+            List<AccessibleGap> AccessibleGapsInColumn = new List<AccessibleGap>();
 
-            bool nextGapsIsPartical = false;
+            bool nextGapsIsAccessible = false;
 
-            Func<CellPosition, bool> CheckInDirection = (sideAccess == ParticalGap.SideAccess.Left) 
-                ? IsGapPracticalInLeft : IsGapPracticalInRight;
+            Func<CellPosition, bool> CheckInDirection = (sideAccess == AccessibleGap.SideAccess.Left) 
+                ? IsGapAccessibleInLeft : IsGapAccessibleInRight;
 
             for (int r = 0; r < gapsInColumn.Length; r++)
             {
-                if (nextGapsIsPartical)
+                if (nextGapsIsAccessible)
                 {
-                    particalGapsInColumn.Add(new ParticalGap(gapsInColumn[r], column, sideAccess));
+                    AccessibleGapsInColumn.Add(new AccessibleGap(gapsInColumn[r], column, sideAccess));
                     continue;
                 }
 
                 CellPosition gap = new CellPosition(gapsInColumn[r], column);
                 if (CheckInDirection(gap))
                 {
-                    nextGapsIsPartical = true;
-                    particalGapsInColumn.Add(new ParticalGap(gapsInColumn[r], column, sideAccess));
+                    nextGapsIsAccessible = true;
+                    AccessibleGapsInColumn.Add(new AccessibleGap(gapsInColumn[r], column, sideAccess));
                 }
             }
-            return particalGapsInColumn.ToArray();
+            return AccessibleGapsInColumn.ToArray();
         }
 
-        private bool IsGapPracticalInLeft(CellPosition gap)
+        private bool IsGapAccessibleInLeft(CellPosition gap)
         {
             if (gap.X <= 1)
                 return false;
@@ -144,7 +144,7 @@ namespace Tetris
                 return true;
         }
 
-        private bool IsGapPracticalInRight(CellPosition gap)
+        private bool IsGapAccessibleInRight(CellPosition gap)
         {
             if (gap.X >= Columns - 2)
                 return false;
@@ -168,7 +168,7 @@ namespace Tetris
 
             rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, rotationAttempts);
 
-            CurrentShape.SetShapeValue(direction);
+            CurrentShape.SetNewShapeValue(direction);
 
             CheckRotateShapeWithAttempts(DirectionOfRotation.isCounterclockwise, rotationAttempts);
         }

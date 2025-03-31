@@ -53,7 +53,7 @@ namespace Tetris
                 throw new InvalidOperationException
                     ("Shape type cannot have the value GridValue.Empty");
             ShapeType = shapeType;
-            SetShapeValue(direction);
+            SetNewShapeValue(direction);
             RowsCount = this.ShapeGrid.GetLength(0);
             ColumnsCount = this.ShapeGrid.GetLength(1);
 
@@ -68,8 +68,28 @@ namespace Tetris
 
         public Shape(GridValue shapeType) : this(shapeType, Dir_Rotation.Up) { }
 
+        public void RotateClockwise()
+        {
+            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
+
+            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == (enumSize - 1)) ? 0
+                : (int)this.Direction + 1);
+
+            SetNewShapeValue(newDir);
+        }
+
+        public void RotateCounterclockwise()
+        {
+            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
+
+            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == 0)
+                ? (enumSize - 1) : (int)this.Direction - 1);
+
+            SetNewShapeValue(newDir);
+        }
+
         [MemberNotNull(nameof(ShapeGrid))]
-        public void SetShapeValue(Dir_Rotation dir)
+        public void SetNewShapeValue(Dir_Rotation dir)
         {
             this.Direction = dir;
             this.ShapeGrid = ShapeType switch
@@ -83,50 +103,11 @@ namespace Tetris
                 GridValue.S_Shape => Set_S_ShapeValue(Direction),
                 _ => throw new InvalidOperationException($"Unsupported GridValue: {ShapeType}")
             };
-        }
 
-        public void RotateClockwise()
-        {
-            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
-
-            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == (enumSize - 1)) ? 0
-                : (int)this.Direction + 1);
-
-            SetShapeValue(newDir);
-        }
-
-        public void RotateCounterclockwise()
-        {
-            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
-
-            Dir_Rotation newDir = (Dir_Rotation)(((int)this.Direction == 0)
-                ? (enumSize - 1) : (int)this.Direction - 1);
-
-            SetShapeValue(newDir);
-        }
-
-        public void SetNewPositionOnGrid(int[] rowsPosition, int[] columnsPosition)
-        {
-            RowsPosition = rowsPosition;
-            ColumnsPosition = columnsPosition;
-        }
-
-        public void MovePositionDown()
-        {
-            for (int i = 0; i < RowsPosition.Length; i++)
-                RowsPosition[i]--;
-        }
-
-        public void MovePositionLeft()
-        {
-            for (int i = 0; i < ColumnsPosition.Length; i++)
-                ColumnsPosition[i]--;
-        }
-
-        public void MovePositionRight()
-        {
-            for (int i = 0; i < ColumnsPosition.Length; i++)
-                ColumnsPosition[i]++;
+            StartRowIndex = GetStartRowIndex();
+            StartColumnIndex = GetStartColumnIndex();
+            Height = CalculateShapeHeight();
+            Width = CalculateShapeWidth();
         }
 
         private int GetStartRowIndex()
@@ -400,6 +381,30 @@ namespace Tetris
                     break;
             }
             return shapeS;
+        }
+
+        public void SetNewPositionOnGrid(int[] rowsPosition, int[] columnsPosition)
+        {
+            RowsPosition = rowsPosition;
+            ColumnsPosition = columnsPosition;
+        }
+
+        public void MovePositionDown()
+        {
+            for (int i = 0; i < RowsPosition.Length; i++)
+                RowsPosition[i]--;
+        }
+
+        public void MovePositionLeft()
+        {
+            for (int i = 0; i < ColumnsPosition.Length; i++)
+                ColumnsPosition[i]--;
+        }
+
+        public void MovePositionRight()
+        {
+            for (int i = 0; i < ColumnsPosition.Length; i++)
+                ColumnsPosition[i]++;
         }
     }
 }

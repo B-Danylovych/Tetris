@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Tetris
 {
-    public class ParticalGap : CellPosition
+    public class AccessibleGap : CellPosition
     {
         public enum SideAccess
         {
@@ -16,7 +16,7 @@ namespace Tetris
 
         public SideAccess Side {  get; }
 
-        public ParticalGap(int row, int column, SideAccess side) : base(row, column)
+        public AccessibleGap(int row, int column, SideAccess side) : base(row, column)
         {
             Side = side;
         }
