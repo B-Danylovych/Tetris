@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Shapes;
 
 namespace Tetris
@@ -160,21 +161,23 @@ namespace Tetris
 
         private void CheckAllDirectionOfRotationProjectedShape()
         {
-            CheckAllPositionsProjectedShapes();
+            CheckAllPositionsProjectedShapes(new Action[0]);
 
-            Dir_Rotation direction = CurrentShape.Direction;
+            Shape currentShape = CurrentShape.DeepCopy();
 
             int rotationAttempts = 3;
 
             rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, rotationAttempts);
 
-            CurrentShape.SetNewShapeValue(direction);
+            CurrentShape = currentShape.DeepCopy();
+            SetProjectedShape();
 
             CheckRotateShapeWithAttempts(DirectionOfRotation.isCounterclockwise, rotationAttempts);
         }
 
         private int CheckRotateShapeWithAttempts(DirectionOfRotation directionOfRotation, int attempts)
         {
+            List<Action> actionList = new List<Action>();
             int rotationAttempts = attempts;
             bool canRotate = true;
             while (rotationAttempts > 0 && canRotate)
@@ -183,38 +186,108 @@ namespace Tetris
                 rotationAttempts--;
 
                 if (canRotate)
-                    CheckAllPositionsProjectedShapes();
+                {
+                    SetProjectedShape();
+                    actionList.Add(() => Rotate(directionOfRotation));
+                    CheckAllPositionsProjectedShapes(actionList.ToArray());
+                }
             }
             return rotationAttempts;
         }
 
-        public void CheckAllPositionsProjectedShapes()
+        public void CheckAllPositionsProjectedShapes(Action[] actions)
         {
-            ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
+            ShapeMoveOptions.Add(GetCurrentPositionMoveOption(actions));
 
-            int[] currentColumnsPosition = CurrentShape.ColumnsPosition.ToArray();
+            CheckAccessibleGaps(actions);
 
-            CheckAllPositionsInDirection(MoveLeft);
+            Shape currentShape = CurrentShape.DeepCopy();
 
-            CurrentShape.SetNewPositionOnGrid(CurrentShape.RowsPosition, currentColumnsPosition.ToArray());
+            CheckAllPositionsInDirection(MoveLeft, true, actions);
 
-            CheckAllPositionsInDirection(MoveRight);
+            CurrentShape = currentShape.DeepCopy();
+            SetProjectedShape();
 
-            CurrentShape.SetNewPositionOnGrid(CurrentShape.RowsPosition, currentColumnsPosition.ToArray());
+            CheckAllPositionsInDirection(MoveRight, true, actions);
+
+            CurrentShape = currentShape.DeepCopy();
+            SetProjectedShape();
         }
 
-        private void CheckAllPositionsInDirection(Func<bool> MoveInDirection)
+        private void CheckAccessibleGaps(Action[] actions)
         {
-            bool canMove = MoveInDirection();
-            while (canMove)
+            foreach (AccessibleGap[] columnOfAccessibleGaps in AccessibleGaps)
             {
-                ShapeMoveOptions.Add(GetCurrentPositionMoveOption());
-                canMove = MoveInDirection();
+                if (!IsCurrentShapeNearColumnOfAccessibleGaps(columnOfAccessibleGaps))
+                    continue;
+
+                List<Action> actionList = actions.ToList();
+
+                Shape currentShape = CurrentShape.DeepCopy();
+
+                Func<bool> MoveInDirection = columnOfAccessibleGaps[0].Side == AccessibleGap.SideAccess.Left
+                    ? MoveRight : MoveLeft;
+
+                if (IsCurrentShapeNearAccessibleGap(columnOfAccessibleGaps))
+                    CheckAllPositionsInDirection(MoveInDirection, false, actionList.ToArray());
+
+                while (MoveDown())
+                {
+                    actionList.Add(() => MoveDown());
+                    if (IsCurrentShapeNearAccessibleGap(columnOfAccessibleGaps))
+                        CheckAllPositionsInDirection(MoveInDirection, false, actionList.ToArray());
+                }
             }
         }
 
-        private ShapeMoveOption GetCurrentPositionMoveOption()
-            => new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape));
+        private bool IsCurrentShapeNearColumnOfAccessibleGaps(AccessibleGap[] columnOfAccessibleGaps)
+        {
+            if (columnOfAccessibleGaps[0].Side == AccessibleGap.SideAccess.Left)
+            {
+                int lastColumnIndex = CurrentShape.StartColumnIndex + CurrentShape.Width - 1;
+
+                return CurrentShape.ColumnsPosition[lastColumnIndex] + 1
+                == columnOfAccessibleGaps[0].X;
+            }
+            else
+            {
+                int startColumnIndex = CurrentShape.StartColumnIndex;
+
+                return CurrentShape.ColumnsPosition[startColumnIndex] - 1
+                == columnOfAccessibleGaps[0].X;
+            }
+        }
+
+        private bool IsCurrentShapeNearAccessibleGap(AccessibleGap[] columnOfAccessibleGaps)
+        {
+            int startRowPosition = CurrentShape.RowsPosition[CurrentShape.StartRowIndex];
+            int lastRowPosition = CurrentShape.RowsPosition[CurrentShape.StartRowIndex + CurrentShape.Height - 1];
+
+            foreach (AccessibleGap accessibleGap in columnOfAccessibleGaps)
+            {
+                return accessibleGap.Y <= startRowPosition && accessibleGap.Y >= lastRowPosition;
+            }
+
+            return false;
+        }
+
+        private void CheckAllPositionsInDirection(Func<bool> MoveInDirection, bool isTopCheck, Action[] actions)
+        {
+            List<Action> actionList = actions.ToList();
+
+            while (MoveInDirection())
+            {
+                SetProjectedShape();
+                actionList.Add(() => MoveInDirection());
+                ShapeMoveOptions.Add(GetCurrentPositionMoveOption(actionList.ToArray()));
+
+                if (isTopCheck)
+                    CheckAccessibleGaps(actionList.ToArray());
+            }
+        }
+
+        private ShapeMoveOption GetCurrentPositionMoveOption(Action[] actions)
+            => new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape), actions);
 
         public int CalculateMoveOptionScore(Shape projShape)
         {

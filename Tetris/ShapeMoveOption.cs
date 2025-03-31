@@ -10,11 +10,13 @@ namespace Tetris
     {
         public Shape ProjectedFigure { get; }
         public int Score { get; }
+        public Action[] Actions { get; }
 
-        public ShapeMoveOption(Shape projectedFigure, int score)
+        public ShapeMoveOption(Shape projectedFigure, int score, Action[] actions)
         {
             ProjectedFigure = projectedFigure;
             Score = score;
+            Actions = actions;
         }
     }
 }
