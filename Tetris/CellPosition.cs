@@ -8,13 +8,13 @@ namespace Tetris
 {
     public class CellPosition
     {
-        public int X { get; set; }
-        public int Y { get; set; }
+        public int Column { get; set; }
+        public int Row { get; set; }
 
         public CellPosition(int row, int column)
         {
-            X = column;
-            Y = row;
+            Column = column;
+            Row = row;
         }
     }
 }

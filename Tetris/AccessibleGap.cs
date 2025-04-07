@@ -10,6 +10,7 @@ namespace Tetris
     {
         public enum SideAccess
         {
+            None,
             Left,
             Right
         }

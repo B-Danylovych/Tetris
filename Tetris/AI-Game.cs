@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.DirectoryServices.ActiveDirectory;
 using System.Drawing;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Shapes;
+using static Tetris.AccessibleGap;
 
 namespace Tetris
 {
@@ -17,9 +20,9 @@ namespace Tetris
         public List<ShapeMoveOption> ShapeMoveOptions { get; private set; }
             = new List<ShapeMoveOption>();
 
-        public int[] TopTilesOfColumns {  get; private set; }
+        public int[] TopTilesOfColumns { get; private set; }
         public int[][] Gaps { get; private set; }
-        public AccessibleGap[][] AccessibleGaps {  get; private set; }
+        public AccessibleGap[][] AccessibleGaps { get; private set; }
 
         public AI_Game(int rows, int hiddenRowsOnTop, int cols,
             Shape bufferShape, Shape currentShape, Shape projectedShape, List<List<GridValue>> grid)
@@ -30,9 +33,9 @@ namespace Tetris
             ProjectedShape = SetShapeClone(projectedShape);
             Grid = SetGridClone(grid);
 
-            TopTilesOfColumns = GetTopTilesOfColumns();
-            Gaps = GetGapsToTopTiles(TopTilesOfColumns);
-            AccessibleGaps = GetAccessibleGaps(Gaps);
+            TopTilesOfColumns = GetTopTiles();
+            Gaps = GetGapsToTopTiles();
+            AccessibleGaps = GetAccessibleGaps();
         }
 
         private Shape SetShapeClone(Shape cloneShape)
@@ -41,103 +44,126 @@ namespace Tetris
         private List<List<GridValue>> SetGridClone(List<List<GridValue>> grid)
             => new List<List<GridValue>>(grid);
 
-        private int[] GetTopTilesOfColumns()
+        private int[] GetTopTiles()
         {
             int[] topTiles = new int[Columns];
             for (int c = 0; c < Columns; c++)
             {
-                int topTile = -1;
-                for (int r = 0; r < (Rows - HiddenRowsOnTop - 1); r++)
-                {
-                    if (Grid[r][c] != GridValue.Empty)
-                    {
-                        topTile = r;
-                    }
-                }
-                topTiles[c] = topTile;
+                topTiles[c] = GetTopTileOfColumn(c);
             }
             return topTiles;
         }
 
-        private int[][] GetGapsToTopTiles(int[] topTilesOfColumns)
+        private int GetTopTileOfColumn(int column)
+        {
+            for (int row = Rows - HiddenRowsOnTop - 1; row >= 0; row--)
+            {
+                if (Grid[row][column] != GridValue.Empty)
+                    return row;
+            }
+            return -1;
+        }
+
+        private int[][] GetGapsToTopTiles()
         {
             int[][] gaps = new int[Columns][];
             for (int c = 0; c < Columns; c++)
             {
-                List<int> gapsInColumn = new List<int>();
-                for (int r = 0; r < topTilesOfColumns[c]; r++)
-                {
-                    if (Grid[r][c] == GridValue.Empty)
-                    {
-                        gapsInColumn.Add(r);
-                    }
-                }
-                gaps[c] = gapsInColumn.ToArray();
+                gaps[c] = GetGapsToTopTileOfColumn(c, TopTilesOfColumns[c]);
             }
             return gaps;
         }
 
-        private AccessibleGap[][] GetAccessibleGaps(int[][] gaps)
+        private int[] GetGapsToTopTileOfColumn(int column, int topTile)
+        {
+            List<int> gapsInColumn = new List<int>();
+            for (int row = 0; row < topTile; row++)
+            {
+                if (Grid[row][column] == GridValue.Empty)
+                {
+                    gapsInColumn.Add(row);
+                }
+            }
+            return gapsInColumn.ToArray();
+        }
+
+        private AccessibleGap[][] GetAccessibleGaps()
         {
             List<AccessibleGap[]> accessibleGaps = new List<AccessibleGap[]>();
-            for (int c = 0; c < gaps.Length; c++)
+            for (int column = 0; column < Gaps.Length; column++)
             {
-                if (gaps[c].Length == 0)
+                if (Gaps[column].Length == 0)
                     continue;
 
-                CellPosition topGap = new CellPosition(gaps[c][gaps[c].Length - 1], c);
+                CellPosition topGap = GetTopGapOfGapsInColumn(column, Gaps[column]);
 
-                if (IsGapAccessibleInLeft(topGap))
+                AccessibleGap.SideAccess sideAccessOfTopGap = GetAccessibilityOfGap(topGap);
+
+                if (sideAccessOfTopGap != AccessibleGap.SideAccess.None)
                 {
+                    AccessibleGap TopAccessibleGap =
+                        new AccessibleGap(topGap.Row, topGap.Column, sideAccessOfTopGap);
+
                     accessibleGaps.Add(
-                        GetAccessibleGapsOfColumnInDirection(c, gaps[c], AccessibleGap.SideAccess.Left)
-                    );
-                }
-                else if (IsGapAccessibleInRight(topGap))
-                {
-                    accessibleGaps.Add(
-                        GetAccessibleGapsOfColumnInDirection(c, gaps[c], AccessibleGap.SideAccess.Right)
+                        GetAccessibleGapsOfTopAccessibleGapColumn(TopAccessibleGap)
                     );
                 }
             }
             return accessibleGaps.ToArray();
         }
 
-        private AccessibleGap[] GetAccessibleGapsOfColumnInDirection
-            (int column, int[] gapsInColumn, AccessibleGap.SideAccess sideAccess)
+        private CellPosition GetTopGapOfGapsInColumn(int column, int[] gapsInColumn)
+        {
+            int row = gapsInColumn[gapsInColumn.Length - 1];
+            return new CellPosition(row, column);
+        }
+
+        private AccessibleGap.SideAccess GetAccessibilityOfGap(CellPosition gap)
+        {
+            if (IsGapAccessibleInLeft(gap))
+                return AccessibleGap.SideAccess.Left;
+            else if (IsGapAccessibleInRight(gap))
+                return AccessibleGap.SideAccess.Right;
+            else
+                return AccessibleGap.SideAccess.None;
+        }
+
+        private AccessibleGap[] GetAccessibleGapsOfTopAccessibleGapColumn(AccessibleGap topAccessibleGap)
         {
             List<AccessibleGap> AccessibleGapsInColumn = new List<AccessibleGap>();
 
-            bool nextGapsIsAccessible = false;
+            int column = topAccessibleGap.Column;
+            int[] gapsInColumn = Gaps[column];
+            AccessibleGap.SideAccess sideAccess = topAccessibleGap.Side;
 
-            Func<CellPosition, bool> CheckInDirection = (sideAccess == AccessibleGap.SideAccess.Left) 
-                ? IsGapAccessibleInLeft : IsGapAccessibleInRight;
+            Func<CellPosition, bool> CheckInDirection = GetCheckInDirectionDelegateBySideAccess(sideAccess);
+            bool nextGapsIsAccessible = false;
 
             for (int r = 0; r < gapsInColumn.Length; r++)
             {
-                if (nextGapsIsAccessible)
-                {
-                    AccessibleGapsInColumn.Add(new AccessibleGap(gapsInColumn[r], column, sideAccess));
-                    continue;
-                }
-
                 CellPosition gap = new CellPosition(gapsInColumn[r], column);
-                if (CheckInDirection(gap))
+
+                if (nextGapsIsAccessible || CheckInDirection(gap))
                 {
+                    AccessibleGapsInColumn.Add(new AccessibleGap(gap.Row, gap.Column, sideAccess));
                     nextGapsIsAccessible = true;
-                    AccessibleGapsInColumn.Add(new AccessibleGap(gapsInColumn[r], column, sideAccess));
                 }
             }
             return AccessibleGapsInColumn.ToArray();
         }
 
+        private Func<CellPosition, bool> GetCheckInDirectionDelegateBySideAccess
+            (AccessibleGap.SideAccess sideAccess)
+        {
+            return (sideAccess == AccessibleGap.SideAccess.Left)
+                    ? IsGapAccessibleInLeft : IsGapAccessibleInRight;
+        }
+
         private bool IsGapAccessibleInLeft(CellPosition gap)
         {
-            if (gap.X <= 1)
-                return false;
-
-            if (gap.Y <= TopTilesOfColumns[gap.X - 1] ||
-                gap.Y <= TopTilesOfColumns[gap.X - 2])
+            if (gap.Column < 2 ||
+                gap.Row <= TopTilesOfColumns[gap.Column - 1] ||
+                gap.Row <= TopTilesOfColumns[gap.Column - 2])
             {
                 return false;
             }
@@ -147,11 +173,9 @@ namespace Tetris
 
         private bool IsGapAccessibleInRight(CellPosition gap)
         {
-            if (gap.X >= Columns - 2)
-                return false;
-
-            if (gap.Y <= TopTilesOfColumns[gap.X + 1] ||
-                gap.Y <= TopTilesOfColumns[gap.X + 2])
+            if (gap.Column >= Columns - 2 ||
+                gap.Row <= TopTilesOfColumns[gap.Column + 1] ||
+                gap.Row <= TopTilesOfColumns[gap.Column + 2])
             {
                 return false;
             }
@@ -247,14 +271,14 @@ namespace Tetris
                 int lastColumnIndex = CurrentShape.StartColumnIndex + CurrentShape.Width - 1;
 
                 return CurrentShape.ColumnsPosition[lastColumnIndex] + 1
-                == columnOfAccessibleGaps[0].X;
+                == columnOfAccessibleGaps[0].Column;
             }
             else
             {
                 int startColumnIndex = CurrentShape.StartColumnIndex;
 
                 return CurrentShape.ColumnsPosition[startColumnIndex] - 1
-                == columnOfAccessibleGaps[0].X;
+                == columnOfAccessibleGaps[0].Column;
             }
         }
 
@@ -265,7 +289,7 @@ namespace Tetris
 
             foreach (AccessibleGap accessibleGap in columnOfAccessibleGaps)
             {
-                return accessibleGap.Y <= startRowPosition && accessibleGap.Y >= lastRowPosition;
+                return accessibleGap.Row <= startRowPosition && accessibleGap.Row >= lastRowPosition;
             }
 
             return false;
@@ -293,27 +317,21 @@ namespace Tetris
         {
             int score = 0;
 
-            score += CalculateHighShapeScore(projShape);
-
-            int[] fullLinesIndices = CalculateFullLines(projShape);
+            int[] fullLinesIndices = GetFullLinesIndices(projShape);
             score -= fullLinesIndices.Length * 2;
 
-            score += CalculateGapsOfMoveOption(projShape, fullLinesIndices) * 3;
+            score -= IsShapeOfMoveOptionEliminatedByFullLines(projShape, fullLinesIndices) ? 10000 : 0;
+
+            score += CalculateHighShapeScore(projShape);
+
+            score += CalculateNumOfCreatedGapsByMoveOption(projShape, fullLinesIndices) * 3;
+
+            score += CalculateExistedBlockedGapsImpactByMoveOption(projShape, fullLinesIndices);
 
             return score;
         }
 
-        private int CalculateHighShapeScore(Shape projShape)
-        {
-            for (int r = 0; r < projShape.RowsCount; r++)
-                for (int c = 0; c < projShape.ColumnsCount; c++)
-                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
-                        return (projShape.RowsPosition[r]);
-
-            throw new InvalidOperationException("The projectedShape is empty.");
-        }
-
-        private int[] CalculateFullLines(Shape projShape)
+        private int[] GetFullLinesIndices(Shape projShape)
         {
             List<int> fullLines = new List<int>();
 
@@ -350,20 +368,50 @@ namespace Tetris
             return true;
         }
 
-        private int CalculateGapsOfMoveOption(Shape projShape, int[] fullLinesIndices)
+        private bool IsShapeOfMoveOptionEliminatedByFullLines(Shape projShape, int[] fullLinesIndices)
+        {
+            for (int r = 0; r < projShape.RowsCount; r++)
+            {
+                if (fullLinesIndices.Contains(projShape.RowsPosition[r]))
+                    continue;
+
+                for (int c = 0; c < projShape.ColumnsCount; c++)
+                {
+                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        private int CalculateHighShapeScore(Shape projShape)
+        {
+            for (int r = 0; r < projShape.RowsCount; r++)
+            {
+                for (int c = 0; c < projShape.ColumnsCount; c++)
+                {
+                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
+                        return (projShape.RowsPosition[r]);
+                }
+            }
+
+            throw new InvalidOperationException("The projectedShape is empty.");
+        }
+
+        private int CalculateNumOfCreatedGapsByMoveOption(Shape projShape, int[] fullLinesIndices)
         {
             int numOfGaps = 0;
 
-            CellPosition[] lowestShapeTiles = GetLowestNotFromFullLinesTiles(projShape, fullLinesIndices);
+            CellPosition[] lowestShapeTiles = GetLowestTilesNotFromFullLines(projShape, fullLinesIndices);
 
             foreach (CellPosition tile in lowestShapeTiles)
             {
-                for (int r = tile.Y - 1; r >= 0; r--)
+                for (int r = tile.Row - 1; r >= 0; r--)
                 {
                     if (fullLinesIndices.Contains(r))
                         continue;
 
-                    if (Grid[r][tile.X] == GridValue.Empty)
+                    if (Grid[r][tile.Column] == GridValue.Empty)
                         numOfGaps++;
                     else
                         break;
@@ -373,28 +421,30 @@ namespace Tetris
             return numOfGaps;
         }
 
-        private CellPosition[] GetLowestNotFromFullLinesTiles(Shape projShape, int[] fullLinesIndices)
+        private CellPosition[] GetLowestTilesNotFromFullLines(Shape projShape, int[] fullLinesIndices)
         {
-            List<CellPosition> lowestShapeTiles = new List<CellPosition>();
+            CellPosition[] lowestShapeTiles = new CellPosition[projShape.ColumnsCount];
 
-            int[] reverseRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
-            Array.Reverse(reverseRowIndices);
+            int[] filteredRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
 
             for (int c = 0; c < projShape.ColumnsCount; c++)
             {
-                foreach (int r in reverseRowIndices)
-                {
-                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
-                    {
-                        lowestShapeTiles.Add(
-                            new CellPosition(projShape.RowsPosition[r], projShape.ColumnsPosition[c])
-                        );
-                        break;
-                    }
-                }
+                lowestShapeTiles[c] = GetLowestTilesInColumnNotFromFullLines(projShape, c, filteredRowIndices);
             }
 
             return lowestShapeTiles.ToArray();
+        }
+
+        private CellPosition GetLowestTilesInColumnNotFromFullLines
+            (Shape projShape, int column, int[] filteredRowIndices)
+        {
+            foreach (int row in filteredRowIndices.Reverse())
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                    return new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column]);
+            }
+
+            return new CellPosition(-1, projShape.ColumnsPosition[column]);
         }
 
         private int[] GetRowIndicesWithoutFullLines(int[] currentRowIndices, int[] fullLinesIndices)
@@ -404,6 +454,63 @@ namespace Tetris
             rowIndicesWithoutFullLines.RemoveAll(i => fullLinesIndices.Contains(currentRowIndices[i]));
 
             return rowIndicesWithoutFullLines.ToArray();
+        }
+
+        private int CalculateExistedBlockedGapsImpactByMoveOption(Shape projShape, int[] fullLinesIndices)
+        {
+            int gapTileProduct = 0;
+
+            CellPosition[] lowestShapeTiles = GetLowestTilesNotFromFullLines(projShape, fullLinesIndices);
+            int[] numOfShapeTiles = GetNumOfTilesNotFromFullLines(projShape, fullLinesIndices);
+
+            for (int c = 0; c < lowestShapeTiles.Length; c++)
+            {
+                CellPosition tile = lowestShapeTiles[c];
+
+                int numOfExistedBlockedGapsInColumn = 0;
+                int numOfGapsInGroup = 0;
+                for (int r = 0; r < tile.Row; r++)
+                {
+                    if (fullLinesIndices.Contains(r))
+                        continue;
+
+                    if (Grid[r][tile.Column] == GridValue.Empty)
+                        numOfGapsInGroup++;
+                    else
+                    {
+                        numOfExistedBlockedGapsInColumn += numOfGapsInGroup;
+                        numOfGapsInGroup = 0;
+                    }   
+                }
+                gapTileProduct += numOfShapeTiles[c] * numOfExistedBlockedGapsInColumn;
+            }
+
+            return gapTileProduct;
+        }
+
+        private int[] GetNumOfTilesNotFromFullLines(Shape projShape, int[] fullLinesIndices)
+        {
+            int[] numOfTiles = new int[projShape.ColumnsCount];
+
+            int[] filteredRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
+
+            for (int c = 0; c < projShape.ColumnsCount; c++)
+            {
+                numOfTiles[c] = GetNumOfTilesInColumnNotFromFullLines(projShape, c, filteredRowIndices);
+            }
+
+            return numOfTiles;
+        }
+
+        private int GetNumOfTilesInColumnNotFromFullLines(Shape projShape, int column, int[] filteredRowIndices)
+        {
+            int numOfTilesInColumn = 0;
+            foreach (int row in filteredRowIndices.Reverse())
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                    numOfTilesInColumn++;
+            }
+            return numOfTilesInColumn;
         }
     }
 }
