@@ -409,7 +409,7 @@ namespace Tetris
                 if (overlayingTilesCount <= 0)
                     continue;
 
-                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeGrid(projShape, c);
+                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeInColumn(projShape, c);
 
                 int affectedGapsCount = Gaps[c].TakeWhile(x => x < lowestRowPositionTile).Count();
 
@@ -429,12 +429,12 @@ namespace Tetris
             return numOfTiles;
         }
 
-        private int GetLowestRowPositionTileOfShapeGrid(Shape projShape, int column)
+        private int GetLowestRowPositionTileOfShapeInColumn(Shape projShape, int column)
         {
             for (int row = projShape.RowsCount - 1; row >= 0; row--)
             {
                 if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    return row;
+                    return projShape.RowsPosition[row];
             }
             return -1;
         }
@@ -445,7 +445,7 @@ namespace Tetris
 
             for (int c = 0; c < projShape.ColumnsCount; c++)
             {
-                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeGrid(projShape, c);
+                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeInColumn(projShape, c);
 
                 for (int r = lowestRowPositionTile - 1; r >= 0; r--)
                 {
@@ -505,5 +505,35 @@ namespace Tetris
 
             return numOfEdgesInRow;
         }
+
+        //private int CountFilledAccessibleGaps(Shape projShape)
+        //{
+        //    int numOfFilledAccessibleGaps = 0;
+
+        //    for (int c = 0; c < projShape.ColumnsCount; c++)
+        //    {
+        //        int numOfTiles = GetNumOfTilesInColumnOfShapeGrid(projShape, c);
+
+        //        if (numOfTiles == 0)
+        //            continue;
+
+        //        int highestRowPositionTile = GetHighestRowPositionTileOfShapeGrid(projShape, c);
+
+        //        if(highestRowPositionTile < TopTilesOfColumns[c])
+
+        //        blockingImpact += overlayingTilesCount * affectedGapsCount;
+        //    }
+        //    return blockingImpact;
+        //}
+
+        //private int GetHighestRowPositionTileOfShapeGrid(Shape projShape, int column)
+        //{
+        //    for (int row = 0; row < projShape.RowsCount; row++)
+        //    {
+        //        if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+        //            return row;
+        //    }
+        //    return -1;
+        //}
     }
 }
