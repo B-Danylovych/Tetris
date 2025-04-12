@@ -324,9 +324,9 @@ namespace Tetris
 
             score += CalculateHighShapeScore(projShape);
 
-            score += CalculateNumOfCreatedGapsByMoveOption(projShape, fullLinesIndices) * 3;
+            score += CalculateNumOfCreatedGapsByMoveOption(projShape) * 3;
 
-            score += CalculateExistedBlockedGapsImpactByMoveOption(projShape, fullLinesIndices);
+            score += CalculateImpactOnExistingGapsWithMoveOption(projShape, fullLinesIndices.Length);
 
             return score;
         }
@@ -398,20 +398,58 @@ namespace Tetris
             throw new InvalidOperationException("The projectedShape is empty.");
         }
 
-        private int CalculateNumOfCreatedGapsByMoveOption(Shape projShape, int[] fullLinesIndices)
+        private int CalculateImpactOnExistingGapsWithMoveOption(Shape projShape, int clearedLinesCount)
+        {
+            int blockingImpact = 0;
+
+            for (int c = 0; c < projShape.ColumnsCount; c++)
+            {
+                int overlayingTilesCount = GetNumOfTilesInColumnOfShapeGrid(projShape, c) - clearedLinesCount;
+
+                if (overlayingTilesCount <= 0)
+                    continue;
+
+                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeGrid(projShape, c);
+
+                int affectedGapsCount = Gaps[c].TakeWhile(x => x < lowestRowPositionTile).Count();
+
+                blockingImpact += overlayingTilesCount * affectedGapsCount;
+            }
+            return blockingImpact;
+        }
+
+        private int GetNumOfTilesInColumnOfShapeGrid(Shape projShape, int column)
+        {
+            int numOfTiles = 0;
+            for (int row = 0; row < projShape.RowsCount; row++)
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                    numOfTiles++;
+            }
+            return numOfTiles;
+        }
+
+        private int GetLowestRowPositionTileOfShapeGrid(Shape projShape, int column)
+        {
+            for (int row = projShape.RowsCount - 1; row >= 0; row--)
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                    return row;
+            }
+            return -1;
+        }
+
+        private int CalculateNumOfCreatedGapsByMoveOption(Shape projShape)
         {
             int numOfGaps = 0;
 
-            CellPosition[] lowestShapeTiles = GetLowestTilesNotFromFullLines(projShape, fullLinesIndices);
-
-            foreach (CellPosition tile in lowestShapeTiles)
+            for (int c = 0; c < projShape.ColumnsCount; c++)
             {
-                for (int r = tile.Row - 1; r >= 0; r--)
-                {
-                    if (fullLinesIndices.Contains(r))
-                        continue;
+                int lowestRowPositionTile = GetLowestRowPositionTileOfShapeGrid(projShape, c);
 
-                    if (Grid[r][tile.Column] == GridValue.Empty)
+                for (int r = lowestRowPositionTile - 1; r >= 0; r--)
+                {
+                    if (Grid[r][c] == GridValue.Empty)
                         numOfGaps++;
                     else
                         break;
@@ -421,96 +459,51 @@ namespace Tetris
             return numOfGaps;
         }
 
-        private CellPosition[] GetLowestTilesNotFromFullLines(Shape projShape, int[] fullLinesIndices)
+        private int GetNumOfLateralSharedEdges(Shape projShape)
         {
-            CellPosition[] lowestShapeTiles = new CellPosition[projShape.ColumnsCount];
+            int numOfEdges = 0;
 
-            int[] filteredRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
-
-            for (int c = 0; c < projShape.ColumnsCount; c++)
+            for (int r = 0; r < projShape.RowsCount; r++)
             {
-                lowestShapeTiles[c] = GetLowestTilesInColumnNotFromFullLines(projShape, c, filteredRowIndices);
+                numOfEdges += CountSharedEdgesInRowByDirection(projShape, r, SharedEdgeDir.Left);
+                numOfEdges += CountSharedEdgesInRowByDirection(projShape, r, SharedEdgeDir.Right);
             }
 
-            return lowestShapeTiles.ToArray();
+            return numOfEdges;
         }
 
-        private CellPosition GetLowestTilesInColumnNotFromFullLines
-            (Shape projShape, int column, int[] filteredRowIndices)
+        private enum SharedEdgeDir
         {
-            foreach (int row in filteredRowIndices.Reverse())
+            Left,
+            Right
+        }
+
+        private int CountSharedEdgesInRowByDirection(Shape projShape, int row, SharedEdgeDir edgeDirection)
+        {
+            int numOfEdgesInRow = 0;
+
+            int offSetCheck = edgeDirection == SharedEdgeDir.Left ? -1 : 1;
+            int startOfIteration = edgeDirection == SharedEdgeDir.Left ? 0 : projShape.ColumnsCount - 1;
+            int endOfIteration = edgeDirection == SharedEdgeDir.Left ? projShape.ColumnsCount : -1;
+            int stepOfIteration = edgeDirection == SharedEdgeDir.Left ? 1 : -1;
+
+            bool isFirstTileInRow = true;
+            for (int column = startOfIteration; column != endOfIteration; column += stepOfIteration)
             {
                 if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    return new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column]);
-            }
-
-            return new CellPosition(-1, projShape.ColumnsPosition[column]);
-        }
-
-        private int[] GetRowIndicesWithoutFullLines(int[] currentRowIndices, int[] fullLinesIndices)
-        {
-            List<int> rowIndicesWithoutFullLines = Enumerable.Range(0, currentRowIndices.Length).ToList();
-
-            rowIndicesWithoutFullLines.RemoveAll(i => fullLinesIndices.Contains(currentRowIndices[i]));
-
-            return rowIndicesWithoutFullLines.ToArray();
-        }
-
-        private int CalculateExistedBlockedGapsImpactByMoveOption(Shape projShape, int[] fullLinesIndices)
-        {
-            int gapTileProduct = 0;
-
-            CellPosition[] lowestShapeTiles = GetLowestTilesNotFromFullLines(projShape, fullLinesIndices);
-            int[] numOfShapeTiles = GetNumOfTilesNotFromFullLines(projShape, fullLinesIndices);
-
-            for (int c = 0; c < lowestShapeTiles.Length; c++)
-            {
-                CellPosition tile = lowestShapeTiles[c];
-
-                int numOfExistedBlockedGapsInColumn = 0;
-                int numOfGapsInGroup = 0;
-                for (int r = 0; r < tile.Row; r++)
                 {
-                    if (fullLinesIndices.Contains(r))
-                        continue;
-
-                    if (Grid[r][tile.Column] == GridValue.Empty)
-                        numOfGapsInGroup++;
-                    else
+                    if (!isFirstTileInRow ||
+                        projShape.RowsPosition[row] == 0 ||
+                        Grid[projShape.RowsPosition[row] + offSetCheck][column] != GridValue.Empty)
                     {
-                        numOfExistedBlockedGapsInColumn += numOfGapsInGroup;
-                        numOfGapsInGroup = 0;
-                    }   
+                        numOfEdgesInRow++;
+                    }
+
+                    isFirstTileInRow = false;
                 }
-                gapTileProduct += numOfShapeTiles[c] * numOfExistedBlockedGapsInColumn;
             }
 
-            return gapTileProduct;
-        }
-
-        private int[] GetNumOfTilesNotFromFullLines(Shape projShape, int[] fullLinesIndices)
-        {
-            int[] numOfTiles = new int[projShape.ColumnsCount];
-
-            int[] filteredRowIndices = GetRowIndicesWithoutFullLines(projShape.RowsPosition, fullLinesIndices);
-
-            for (int c = 0; c < projShape.ColumnsCount; c++)
-            {
-                numOfTiles[c] = GetNumOfTilesInColumnNotFromFullLines(projShape, c, filteredRowIndices);
-            }
-
-            return numOfTiles;
-        }
-
-        private int GetNumOfTilesInColumnNotFromFullLines(Shape projShape, int column, int[] filteredRowIndices)
-        {
-            int numOfTilesInColumn = 0;
-            foreach (int row in filteredRowIndices.Reverse())
-            {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    numOfTilesInColumn++;
-            }
-            return numOfTilesInColumn;
+            return numOfEdgesInRow;
         }
     }
 }
