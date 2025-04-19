@@ -41,11 +41,14 @@ namespace Tetris
             { GridValue.J_Shape, Images.J_Shape},
         };
 
-        private GameMain Game;
+        public GameMain Game;
+        private AI_Game AI_Game;
 
         private bool paused = true;
         private bool leaved = false;
         private bool windowActivated = true;
+
+        private bool aiActivated = false;
 
         private bool leftIsPressed = false;
         private bool rightIsPressed = false;
@@ -260,7 +263,7 @@ namespace Tetris
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            if (paused)
+            if (paused || aiActivated)
                 return;
 
             switch (e.Key)
@@ -304,7 +307,7 @@ namespace Tetris
 
         private void HandleRotatingKeyPress(GameMain.DirectionOfRotation directionOfRotation)
         {
-            if(Game.Rotate(directionOfRotation))
+            if (Game.Rotate(directionOfRotation))
             {
                 Game.SetProjectedShape();
                 DrawGameGrid();
@@ -313,6 +316,9 @@ namespace Tetris
 
         private void Window_KeyUp(object sender, KeyEventArgs e)
         {
+            if (aiActivated)
+                return;
+
             switch (e.Key)
             {
                 case Key.S:
@@ -378,23 +384,17 @@ namespace Tetris
         {
             while (!Game.IsGameOver)
             {
-                if (paused)
-                {
-                    if (leaved)
-                    {
-                        leaved = false;
-                        return;
-                    }
-                    await Task.Delay(100);
-                }
-                else
-                    await RunGame();
+                await IsPausedCheck();
+                await RunGame();
             }
         }
 
         private async Task RunGame()
         {
-            await Task.Delay(Game.IterationTick);
+            if(aiActivated)
+                await Task.Delay(20);
+            else
+                await Task.Delay(Game.IterationTick);
 
             if (paused)
                 return;
@@ -417,12 +417,57 @@ namespace Tetris
 
                     ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
                     LineTextBlock.Text = $"Lines: {Game.LinesNum}";
+
+                    if (aiActivated)
+                    {
+                        AI_Game = new AI_Game(Game);
+                        await MoveByAIBestMoveOption();
+                    }
                 }
             }
 
             DrawGameGrid();
         }
 
+        private async Task MoveByAIBestMoveOption()
+        {
+            int moveOptionLength = AI_Game.BestMoveOption.Actions.Length;
+            for (int i = 0; i < moveOptionLength; i++)
+            {
+                await Task.Delay(20);
+
+                await IsPausedCheck();
+
+                AI_Game.BestMoveOption.Actions[i].Invoke();
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
+
+            bool canMoveDown;
+            do
+            {
+                await Task.Delay(20);
+
+                await IsPausedCheck();
+
+                canMoveDown = Game.MoveDown();
+                DrawGameGrid();
+            }
+            while (canMoveDown);
+        }
+
+        private async Task IsPausedCheck()
+        {
+            while (paused)
+            {
+                if (leaved)
+                {
+                    leaved = false;
+                    aiActivated = false;
+                }
+                await Task.Delay(100);
+            }
+        }
         public void DrawShapeInBufferGrid(Shape shape)
         {
             int shapeWidth = shape.ColumnsCount;
@@ -563,18 +608,18 @@ namespace Tetris
             await ShowCountDown();
         }
 
-        private void Window_Activated(object sender, EventArgs e) 
+        private void Window_Activated(object sender, EventArgs e)
             => windowActivated = true;
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
             windowActivated = false;
 
-            if (!paused)
-                PauseGame();
+            //if (!paused)
+            //    PauseGame();
         }
 
-        private void Pause_Click(object sender, RoutedEventArgs e) 
+        private void Pause_Click(object sender, RoutedEventArgs e)
             => PauseGame();
 
         private void PauseGame()
@@ -622,9 +667,20 @@ namespace Tetris
             MainMenuBorder.Visibility = Visibility.Visible;
         }
 
-        private void AI_Button_Click(object sender, RoutedEventArgs e)
+        private async void AI_Button_Click(object sender, RoutedEventArgs e)
         {
+            if (!aiActivated)
+            {
+                aiActivated = true;
+                AI_Game = new AI_Game(Game);
+                await MoveByAIBestMoveOption();
+            }
+            else
+                aiActivated = false;
 
+            Game.DeactivateFastDrop();
+            leftIsPressed = false;
+            rightIsPressed = false;
         }
 
         private void HomeButton_Click(object sender, RoutedEventArgs e)

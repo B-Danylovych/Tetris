@@ -12,7 +12,7 @@ namespace Tetris
 
     public class GameMain
     {
-        protected int HiddenRowsOnTop { get; }
+        public int HiddenRowsOnTop { get; }
         public int Rows { get; }
         public int Columns { get; }
 
@@ -200,23 +200,25 @@ namespace Tetris
         public void RemoveLines()
         {
             int linesRemoved = 0;
-            for (int r = 0; r < Grid.Count - HiddenRowsOnTop; r++)
+            foreach(int r in CurrentShape.RowsPosition)
             {
-                if (isLineFullCheck(r))
+                if (r < 0)
+                    continue;
+
+                if (isLineFullCheck(Grid[r].ToArray()))
                 {
                     Grid.RemoveAt(r);
                     Grid.Add(Enumerable.Repeat(GridValue.Empty, Columns).ToList());
                     linesRemoved++;
-                    r--;
                 }
             }
             SetNewScore(linesRemoved);
         }
 
-        private bool isLineFullCheck(int row)
+        protected bool isLineFullCheck(GridValue[] line)
         {
-            for (int c = 0; c < Grid[row].Count; c++)
-                if (Grid[row][c] == GridValue.Empty)
+            foreach (GridValue gridValue in line)
+                if (gridValue == GridValue.Empty)
                     return false;
 
             return true;

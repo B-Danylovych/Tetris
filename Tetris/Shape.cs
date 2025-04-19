@@ -54,13 +54,11 @@ namespace Tetris
                     ("Shape type cannot have the value GridValue.Empty");
             ShapeType = shapeType;
             SetNewShapeValue(direction);
+
             RowsCount = this.ShapeGrid.GetLength(0);
             ColumnsCount = this.ShapeGrid.GetLength(1);
 
-            StartRowIndex = GetStartRowIndex();
-            StartColumnIndex = GetStartColumnIndex();
-            Height = CalculateShapeHeight();
-            Width = CalculateShapeWidth();
+            RecomputeShapeBounds();
 
             RowsPosition = new int[] { int.MinValue };
             ColumnsPosition = new int[] { int.MinValue };
@@ -76,6 +74,7 @@ namespace Tetris
                 : (int)this.Direction + 1);
 
             SetNewShapeValue(newDir);
+            RecomputeShapeBounds();
         }
 
         public void RotateCounterclockwise()
@@ -86,6 +85,7 @@ namespace Tetris
                 ? (enumSize - 1) : (int)this.Direction - 1);
 
             SetNewShapeValue(newDir);
+            RecomputeShapeBounds();
         }
 
         [MemberNotNull(nameof(ShapeGrid))]
@@ -104,6 +104,10 @@ namespace Tetris
                 _ => throw new InvalidOperationException($"Unsupported GridValue: {ShapeType}")
             };
 
+
+        }
+        private void RecomputeShapeBounds()
+        {
             StartRowIndex = GetStartRowIndex();
             StartColumnIndex = GetStartColumnIndex();
             Height = CalculateShapeHeight();
