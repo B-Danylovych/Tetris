@@ -1,6 +1,7 @@
 ﻿using System.Collections.Immutable;
 using System.ComponentModel;
 using System.IO;
+using System.Printing;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -49,6 +50,8 @@ namespace Tetris
         private bool windowActivated = true;
 
         private bool aiActivated = false;
+        private bool aiWasActivatedDuringGame = false;
+        private int aiSpeed = 0;
 
         private bool leftIsPressed = false;
         private bool rightIsPressed = false;
@@ -349,12 +352,24 @@ namespace Tetris
             Game.SetShapes();
             DrawShapeInBufferGrid(Game.BufferShape);
             await GameLoop();
+            aiActivated = false;
             if (Game.IsGameOver)
             {
-                NewTopRecords();
+                if(!aiWasActivatedDuringGame)
+                    NewTopRecords();
+                else
+                {
+                    GameOverScoreText.Text = $"AI Score: ";
+                    GameOverLineText.Text = $"AI Lines: ";
+                    GameOverScoreText.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverLineText.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverLineNum.Foreground = new SolidColorBrush(Colors.Red);
+                }
                 GameOverScoreNum.Text = Game.ScoreNum.ToString();
                 GameOverLineNum.Text = Game.LinesNum.ToString();
                 Pause_AI_Grid.Visibility = Visibility.Collapsed;
+                CollapseAI_Elements();
                 MenuBorder.Visibility = Visibility.Visible;
                 GameOverBorder.Visibility = Visibility.Visible;
             }
@@ -362,7 +377,10 @@ namespace Tetris
             {
                 ScoreTextBlock.Text = $"Score: 0";
                 LineTextBlock.Text = $"Lines: 0";
+                ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+                LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
             }
+            aiWasActivatedDuringGame = false;
         }
 
         private async Task ShowCountDown()
@@ -375,6 +393,7 @@ namespace Tetris
             CountDownText.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Collapsed;
             Pause_AI_Grid.Visibility = Visibility.Visible;
+            AISpeedSlider.Visibility = Visibility.Visible;
             paused = false;
             if (!windowActivated)
                 PauseGame();
@@ -384,25 +403,37 @@ namespace Tetris
         {
             while (!Game.IsGameOver)
             {
-                await IsPausedCheck();
+                await WaitPause();
+                if (leaved)
+                {
+                    leaved = false;
+                    return;
+                }
                 await RunGame();
             }
         }
 
         private async Task RunGame()
         {
-            if(aiActivated)
-                await Task.Delay(20);
+            if (aiActivated)
+            {
+                AI_Game.ResetValues();
+                await MoveByAIBestMoveOption();
+                if (leaved)
+                    return;
+                AI_Game.UptadeGrid();
+            }
             else
                 await Task.Delay(Game.IterationTick);
-
-            if (paused)
-                return;
 
             bool canMoveDown = Game.MoveDown();
             if (!canMoveDown)
             {
-                await Task.Delay(Game.LockDelayTick);
+                if (!aiActivated || aiSpeed < 3)
+                    await Task.Delay(Game.LockDelayTick);
+                else
+                    await Task.Delay(1);
+
                 canMoveDown = Game.MoveDown();
                 if (!canMoveDown)
                 {
@@ -417,12 +448,6 @@ namespace Tetris
 
                     ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
                     LineTextBlock.Text = $"Lines: {Game.LinesNum}";
-
-                    if (aiActivated)
-                    {
-                        AI_Game = new AI_Game(Game);
-                        await MoveByAIBestMoveOption();
-                    }
                 }
             }
 
@@ -431,43 +456,63 @@ namespace Tetris
 
         private async Task MoveByAIBestMoveOption()
         {
-            int moveOptionLength = AI_Game.BestMoveOption.Actions.Length;
-            for (int i = 0; i < moveOptionLength; i++)
+            if (aiSpeed < 2)
             {
-                await Task.Delay(20);
+                foreach (Action action in AI_Game.BestMoveOption.Actions)
+                {
+                    await Task.Delay(aiSpeed == 0 ? 50 : 20);
 
-                await IsPausedCheck();
+                    if (aiSpeed >= 2)
+                        break;
 
-                AI_Game.BestMoveOption.Actions[i].Invoke();
+                    if (!aiActivated)
+                        return;
+
+                    await WaitPause();
+                    if (leaved)
+                        return;
+
+                    action.Invoke();
+                    Game.SetProjectedShape();
+                    DrawGameGrid();
+                }
+
+                while (Game.MoveDown())
+                {
+                    await Task.Delay(aiSpeed == 0 ? 50 : 20);
+
+                    if (aiSpeed >= 2)
+                        break;
+
+                    if (!aiActivated)
+                        return;
+
+                    await WaitPause();
+                    if (leaved)
+                        return;
+
+                    DrawGameGrid();
+                }
+            }
+            if (aiSpeed >= 2)
+            {
+                Game.CurrentShape = AI_Game.BestMoveOption.ProjectedShape.DeepCopy();
                 Game.SetProjectedShape();
                 DrawGameGrid();
             }
-
-            bool canMoveDown;
-            do
-            {
-                await Task.Delay(20);
-
-                await IsPausedCheck();
-
-                canMoveDown = Game.MoveDown();
-                DrawGameGrid();
-            }
-            while (canMoveDown);
         }
 
-        private async Task IsPausedCheck()
+        private async Task WaitPause()
         {
             while (paused)
             {
                 if (leaved)
-                {
-                    leaved = false;
-                    aiActivated = false;
-                }
+                    return;
+
                 await Task.Delay(100);
             }
         }
+
         public void DrawShapeInBufferGrid(Shape shape)
         {
             int shapeWidth = shape.ColumnsCount;
@@ -592,8 +637,16 @@ namespace Tetris
 
         private async void PlayAgain_Click(object sender, RoutedEventArgs e)
         {
+            GameOverScoreText.Text = $"Your Score: ";
+            GameOverLineText.Text = $"Your Lines: ";
             ScoreTextBlock.Text = $"Score: 0";
             LineTextBlock.Text = $"Lines: 0";
+            GameOverScoreText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineNum.Foreground = new SolidColorBrush(Colors.Black);
+            ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
             Game = new GameMain(rows, hiddenRowsOnTop, columns);
@@ -615,8 +668,8 @@ namespace Tetris
         {
             windowActivated = false;
 
-            //if (!paused)
-            //    PauseGame();
+            if (!paused)
+                PauseGame();
         }
 
         private void Pause_Click(object sender, RoutedEventArgs e)
@@ -626,6 +679,7 @@ namespace Tetris
         {
             paused = true;
             Pause_AI_Grid.Visibility = Visibility.Collapsed;
+            AISpeedSlider.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Visible;
             MainMenuBorder.Visibility = Visibility.Visible;
         }
@@ -652,12 +706,15 @@ namespace Tetris
         {
             leaved = true;
             QuitMenuBorder.Visibility = Visibility.Collapsed;
+            CollapseAI_Elements();
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;
 
-            NewTopRecords();
+            if(!aiWasActivatedDuringGame)
+                NewTopRecords();
 
             Game = new GameMain(rows, hiddenRowsOnTop, columns);
+            aiActivated = false;
             DrawGrid();
         }
 
@@ -667,26 +724,81 @@ namespace Tetris
             MainMenuBorder.Visibility = Visibility.Visible;
         }
 
-        private async void AI_Button_Click(object sender, RoutedEventArgs e)
+        private void AI_Button_Click(object sender, RoutedEventArgs e)
         {
             if (!aiActivated)
             {
-                aiActivated = true;
+                aiWasActivatedDuringGame = true;
+                ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Red);
+                LineTextBlock.Foreground = new SolidColorBrush(Colors.Red);
+
+                AI_Button.Content = "STOP";
+                PauseButton.FontSize = 20;
+                AI_Button.FontSize = 20;
+
+                GameInfoGrid.RowDefinitions.Clear();
+
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.4, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+
+                Grid.SetRow(Pause_AI_Grid, 3);
+
+                AISpeedSlider.Visibility = Visibility.Visible;
+
+                Pause_AI_Grid.Margin = new Thickness(20, 0, 20, 20);
+
                 AI_Game = new AI_Game(Game);
-                await MoveByAIBestMoveOption();
+                aiActivated = true;
             }
             else
+            {
+                CollapseAI_Elements();
                 aiActivated = false;
+            }
 
             Game.DeactivateFastDrop();
             leftIsPressed = false;
             rightIsPressed = false;
         }
 
+        private void CollapseAI_Elements()
+        {
+            AI_Button.Content = "AI";
+            PauseButton.FontSize = 30;
+            AI_Button.FontSize = 30;
+
+            GameInfoGrid.RowDefinitions.Clear();
+
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.4, GridUnitType.Star) });
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.3, GridUnitType.Star) });
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.3, GridUnitType.Star) });
+
+            AISpeedSlider.Visibility = Visibility.Collapsed;
+
+            Grid.SetRow(Pause_AI_Grid, 2);
+
+            Pause_AI_Grid.Margin = new Thickness(20, 20, 20, 20);
+        }
+
+        private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            aiSpeed = (int)AISpeedSlider.Value;
+        }
+
         private void HomeButton_Click(object sender, RoutedEventArgs e)
         {
+            GameOverScoreText.Text = $"Your Score: ";
+            GameOverLineText.Text = $"Your Lines: ";
             ScoreTextBlock.Text = $"Score: 0";
             LineTextBlock.Text = $"Lines: 0";
+            ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineNum.Foreground = new SolidColorBrush(Colors.Black);
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;

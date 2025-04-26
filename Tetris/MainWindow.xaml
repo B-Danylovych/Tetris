@@ -102,7 +102,7 @@
                             Height="{Binding ActualHeight, ElementName=TetisBorder}"
                             BorderBrush="Black"
                             BorderThickness="1.5, 0, 0 , 0">
-                        <Grid>
+                        <Grid x:Name="GameInfoGrid">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="0.4*"/>
                                 <RowDefinition Height="0.3*"/>
@@ -132,7 +132,7 @@
                                 <UniformGrid Columns="1"
                                              >
                                     <TextBlock  x:Name="ScoreTextBlock"
-                                                Text="Scores: 0" 
+                                                Text="Scores: 0"
                                                 FontSize="20"
                                                 Foreground="Black"
                                                 FontWeight="bold"/>
@@ -143,14 +143,23 @@
                                                 FontWeight="bold"/>
                                 </UniformGrid>
                             </Border>
+                            <Slider x:Name="AISpeedSlider"
+                                    Visibility="Collapsed"
+                                    Grid.Row="2"
+                                    Margin="20"
+                                    Maximum="3"
+                                    TickPlacement="BottomRight"
+                                    IsSnapToTickEnabled="True"
+                                    ValueChanged="Slider_ValueChanged">
+                            </Slider>
 
                             <Grid   x:Name="Pause_AI_Grid"
                                     Grid.Row="2"
                                     Margin="20"
                                     Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="0.7*"/>
-                                    <ColumnDefinition Width="0.3*"/>
+                                    <ColumnDefinition Width="0.65*"/>
+                                    <ColumnDefinition Width="0.35*"/>
                                 </Grid.ColumnDefinitions>
                                 <Button x:Name="PauseButton"
                                         Grid.Column="0"
@@ -377,6 +386,7 @@
                                     <UniformGrid    Columns="1"
                                                     Grid.Row="1">
                                         <TextBlock Text="Your Score: "
+                                                   x:Name="GameOverScoreText"
                                                        FontSize="25"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center"
@@ -392,6 +402,7 @@
                                     <UniformGrid    Columns="1"
                                                     Grid.Row="2">
                                         <TextBlock Text="Your Lines: "
+                                                   x:Name="GameOverLineText"
                                                        FontSize="25"
                                                        FontWeight="Bold"
                                                        HorizontalAlignment="Center"

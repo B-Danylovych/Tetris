@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.DirectoryServices.ActiveDirectory;
 using System.Drawing;
 using System.Linq;
@@ -17,25 +18,32 @@ namespace Tetris
 {
     public class AI_Game : GameMain
     {
-        private List<ShapeMoveOption> ShapeMoveOptions { get; set; }
-            = new List<ShapeMoveOption>();
+        private ShapeMoveOption[] ShapeMoveOptions { get; set; }
 
         public ShapeMoveOption BestMoveOption { get; private set; }
 
-        public int[] TopTilesOfColumns { get; }
-        public int[][] Gaps { get; }
-        public int NumOfGaps { get; }
-        public AccessibleGap[][] AccessibleGaps { get; }
+        private int[] TopTilesOfColumns { get; set; }
+        private int[][] Gaps { get; set; }
+        private int NumOfGaps { get; set; }
+        private AccessibleGap[][] AccessibleGaps { get; set; }
 
         GameMain Game { get; }
 
         public AI_Game(GameMain game) : base(game.Rows - game.HiddenRowsOnTop, game.HiddenRowsOnTop, game.Columns)
         {
             Game = game;
-            BufferShape = SetShapeClone(game.BufferShape);
-            CurrentShape = SetShapeClone(game.CurrentShape);
-            ProjectedShape = SetShapeClone(game.ProjectedShape);
-            Grid = SetGridClone(game.Grid);
+            Grid = SetGridClone(Game.Grid);
+
+            ResetValues();
+        }
+
+        [MemberNotNull(nameof(TopTilesOfColumns), nameof(Gaps), nameof(AccessibleGaps),
+                   nameof(ShapeMoveOptions), nameof(BestMoveOption))]
+        public void ResetValues()
+        {
+            BufferShape = SetShapeClone(Game.BufferShape);
+            CurrentShape = SetShapeClone(Game.CurrentShape);
+            ProjectedShape = SetShapeClone(Game.ProjectedShape);
 
             TopTilesOfColumns = GetTopTiles();
             Gaps = GetExistingGaps();
@@ -43,29 +51,22 @@ namespace Tetris
 
             NumOfGaps = CountGaps();
 
-            CheckAllDirectionOfRotationProjectedShape();
+            ShapeMoveOptions = GetAllMoveOptions();
             BestMoveOption = GetBestMoveOption();
         }
 
-        private ShapeMoveOption GetBestMoveOption()
+        public void UptadeGrid()
         {
-            ShapeMoveOption bestShapeMoveOption = ShapeMoveOptions[0];
-
-            foreach (ShapeMoveOption shapeMoveOption in ShapeMoveOptions)
-            {
-                bestShapeMoveOption = shapeMoveOption.Score > bestShapeMoveOption.Score
-                    ? shapeMoveOption
-                    : bestShapeMoveOption;
-            }
-
-            return bestShapeMoveOption;
+            CurrentShape = BestMoveOption.ProjectedShape.DeepCopy();
+            SetShapeOnGrid();
+            RemoveLines();
         }
 
         private Shape SetShapeClone(Shape cloneShape)
             => cloneShape.DeepCopy();
 
         private List<List<GridValue>> SetGridClone(List<List<GridValue>> grid)
-            => new List<List<GridValue>>(grid);
+            => grid.Select(row => new List<GridValue>(row)).ToList();
 
         private int[] GetTopTiles()
         {
@@ -214,55 +215,68 @@ namespace Tetris
                 return true;
         }
 
-        private void CheckAllDirectionOfRotationProjectedShape()
+        private ShapeMoveOption[] GetAllMoveOptions()
         {
-            CheckAllPositionsProjectedShapes(new Action[0]);
+            List<ShapeMoveOption> moveOptions = new List<ShapeMoveOption>();
+
+            moveOptions.AddRange(GetMoveOptionsForAllPositionsCurrentRotation(new Action[0]));
 
             Shape currentShape = CurrentShape.DeepCopy();
 
             int rotationAttempts = 3;
 
-            rotationAttempts = CheckRotateShapeWithAttempts(DirectionOfRotation.isClockwise, rotationAttempts);
+            moveOptions.AddRange(GetMoveOptionsForAllPositionsOfRotations(DirectionOfRotation.isClockwise, ref rotationAttempts));
 
             CurrentShape = currentShape.DeepCopy();
             SetProjectedShape();
 
-            CheckRotateShapeWithAttempts(DirectionOfRotation.isCounterclockwise, rotationAttempts);
+            moveOptions.AddRange(GetMoveOptionsForAllPositionsOfRotations(DirectionOfRotation.isCounterclockwise, ref rotationAttempts));
+
+            return moveOptions.ToArray();
         }
 
-        private int CheckRotateShapeWithAttempts(DirectionOfRotation directionOfRotation, int attempts)
+        private ShapeMoveOption[] GetMoveOptionsForAllPositionsOfRotations
+            (DirectionOfRotation directionOfRotation, ref int attempts)
         {
-            List<Action> actionList = new List<Action>();
-            int rotationAttempts = attempts;
-            bool canRotate = true;
-            while (rotationAttempts > 0 && canRotate)
-            {
-                canRotate = Rotate(directionOfRotation);
-                rotationAttempts--;
+            List<ShapeMoveOption> moveOptions = new List<ShapeMoveOption>();
 
-                if (canRotate)
+            List<Action> actionList = new List<Action>();
+
+            while (attempts > 0)
+            {
+                attempts--;
+
+                if (Rotate(directionOfRotation))
                 {
                     SetProjectedShape();
                     actionList.Add(() => Game.Rotate(directionOfRotation));
-                    CheckAllPositionsProjectedShapes(actionList.ToArray());
+                    moveOptions.AddRange(GetMoveOptionsForAllPositionsCurrentRotation(actionList.ToArray()));
                 }
+                else
+                    break;
             }
-            return rotationAttempts;
+            return moveOptions.ToArray();
         }
 
-        public void CheckAllPositionsProjectedShapes(Action[] actions)
+        public ShapeMoveOption[] GetMoveOptionsForAllPositionsCurrentRotation(Action[] actions)
         {
-            ShapeMoveOptions.Add(GetCurrentPositionMoveOption(actions));
+            List<ShapeMoveOption> moveOptions = new List<ShapeMoveOption>();
 
-            CheckAccessibleGaps(actions);
+            moveOptions.Add(GetCurrentPositionMoveOption(actions));
 
-            CheckAllPositionsInDirection(MoveLeft, true, actions);
+            moveOptions.AddRange(GetMoveOptionsToAccessibleGaps(actions));
 
-            CheckAllPositionsInDirection(MoveRight, true, actions);
+            moveOptions.AddRange(GetPositionsByDirection(MoveLeft, true, actions));
+
+            moveOptions.AddRange(GetPositionsByDirection(MoveRight, true, actions));
+
+            return moveOptions.ToArray();
         }
 
-        private void CheckAccessibleGaps(Action[] actions)
+        private ShapeMoveOption[] GetMoveOptionsToAccessibleGaps(Action[] actions)
         {
+            List<ShapeMoveOption> moveOptions = new List<ShapeMoveOption>();
+
             foreach (AccessibleGap[] columnOfAccessibleGaps in AccessibleGaps)
             {
                 if (!IsCurrentShapeNearColumnOfAccessibleGaps(columnOfAccessibleGaps))
@@ -276,16 +290,18 @@ namespace Tetris
                     ? MoveRight : MoveLeft;
 
                 if (IsCurrentShapeNearAccessibleGap(columnOfAccessibleGaps))
-                    CheckAllPositionsInDirection(MoveInDirection, false, actionList.ToArray());
+                    moveOptions.AddRange(GetPositionsByDirection(MoveInDirection, false, actionList.ToArray()));
 
                 while (MoveDown())
                 {
                     actionList.Add(() => Game.MoveDown());
                     if (IsCurrentShapeNearAccessibleGap(columnOfAccessibleGaps))
-                        CheckAllPositionsInDirection(MoveInDirection, false, actionList.ToArray());
+                        moveOptions.AddRange(GetPositionsByDirection(MoveInDirection, false, actionList.ToArray()));
                 }
                 CurrentShape = currentShape.DeepCopy();
             }
+
+            return moveOptions.ToArray();
         }
 
         private bool IsCurrentShapeNearColumnOfAccessibleGaps(AccessibleGap[] columnOfAccessibleGaps)
@@ -319,8 +335,10 @@ namespace Tetris
             return false;
         }
 
-        private void CheckAllPositionsInDirection(Func<bool> MoveInDirection, bool isTopCheck, Action[] actions)
+        private ShapeMoveOption[] GetPositionsByDirection(Func<bool> MoveInDirection, bool isTopCheck, Action[] actions)
         {
+            List<ShapeMoveOption> moveOptions = new List<ShapeMoveOption>();
+
             List<Action> actionList = actions.ToList();
 
             Shape currentShape = CurrentShape.DeepCopy();
@@ -329,25 +347,27 @@ namespace Tetris
             {
                 SetProjectedShape();
                 actionList.Add(() => MoveInDirection.Method.Invoke(Game, null));
-                ShapeMoveOptions.Add(GetCurrentPositionMoveOption(actionList.ToArray()));
+                moveOptions.Add(GetCurrentPositionMoveOption(actionList.ToArray()));
 
                 if (isTopCheck)
-                    CheckAccessibleGaps(actionList.ToArray());
+                    moveOptions.AddRange(GetMoveOptionsToAccessibleGaps(actionList.ToArray()));
             }
 
             CurrentShape = currentShape.DeepCopy();
             SetProjectedShape();
+
+            return moveOptions.ToArray();
         }
 
-        private ShapeMoveOption GetCurrentPositionMoveOption(Action[] actions)
+        public ShapeMoveOption GetCurrentPositionMoveOption(Action[] actions)
             => new ShapeMoveOption(ProjectedShape, CalculateMoveOptionScore(ProjectedShape), actions);
 
         public int CalculateMoveOptionScore(Shape projShape)
         {
+            if (IsGameOverPosition(projShape))
+                return int.MinValue;
+
             int score = 0;
-
-
-            score -= IsGameOverPosition(projShape) ? 100000 : 0;
 
             int[] fullLinesIndices = GetFullLinesIndices(projShape);
             int clearedLinesCount = fullLinesIndices.Length;
@@ -355,9 +375,8 @@ namespace Tetris
             score += (int)Math.Pow(clearedLinesCount * 10, 2);
             score += (clearedLinesCount < 4) ? 0 : 400;
 
-            score += IsShapeEliminatedByFullLines(projShape, fullLinesIndices) ? 700 : 0;
-
             int createdOrFilledGapsScore = NumOfGaps < 10 ? 300 : 400;
+
             score -= CalculateCreatedGaps(projShape, fullLinesIndices) * createdOrFilledGapsScore;
 
             score += CountFilledAccessibleGaps(projShape) * createdOrFilledGapsScore;
@@ -371,12 +390,20 @@ namespace Tetris
 
             score -= CountCreatedCliffs(projShape) * 150;
 
-            int impactOnExistingGapsScore = NumOfGaps < 10 ? 100 : 150;
+            int impactOnExistingGapsScore = NumOfGaps < 10 ? 20 : 40;
             score -= CalculateImpactOnExistingGaps(projShape, clearedLinesCount) * impactOnExistingGapsScore;
 
             score += CountLateralSharedEdges(projShape) * 60 - projShape.Height * 60;
 
             return score;
+        }
+
+        private bool IsGameOverPosition(Shape projShape)
+        {
+            if (projShape.RowsPosition[projShape.StartRowIndex] >= Rows - HiddenRowsOnTop - 1)
+                return true;
+            else
+                return false;
         }
 
         private int[] GetFullLinesIndices(Shape projShape)
@@ -407,77 +434,6 @@ namespace Tetris
             return fullLines.ToArray();
         }
 
-        private bool IsShapeEliminatedByFullLines(Shape projShape, int[] fullLinesIndices)
-        {
-            for (int r = 0; r < projShape.RowsCount; r++)
-            {
-                if (fullLinesIndices.Contains(projShape.RowsPosition[r]))
-                    continue;
-
-                for (int c = 0; c < projShape.ColumnsCount; c++)
-                {
-                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
-                        return false;
-                }
-            }
-            return true;
-        }
-
-        private int CalculateHighOfShape(Shape projShape)
-        {
-            for (int r = 0; r < projShape.RowsCount; r++)
-            {
-                for (int c = 0; c < projShape.ColumnsCount; c++)
-                {
-                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
-                        return (projShape.RowsPosition[r]);
-                }
-            }
-
-            throw new InvalidOperationException("The projectedShape is empty.");
-        }
-
-        private int CalculateImpactOnExistingGaps(Shape projShape, int clearedLinesCount)
-        {
-            int blockingImpact = 0;
-
-            for (int c = 0; c < projShape.ColumnsCount; c++)
-            {
-                int overlayingTilesCount = CountTilesInShapeGridColumn(projShape, c) - clearedLinesCount;
-
-                if (overlayingTilesCount <= 0)
-                    continue;
-
-                int lowestRowPosTile = GetLowestRowPositionTileOfShapeInColumn(projShape, c);
-
-                int affectedGapsCount = Gaps[c].TakeWhile(x => x < lowestRowPosTile).Count();
-
-                blockingImpact += overlayingTilesCount * affectedGapsCount;
-            }
-            return blockingImpact;
-        }
-
-        private int CountTilesInShapeGridColumn(Shape projShape, int column)
-        {
-            int numOfTiles = 0;
-            for (int row = 0; row < projShape.RowsCount; row++)
-            {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    numOfTiles++;
-            }
-            return numOfTiles;
-        }
-
-        private int GetLowestRowPositionTileOfShapeInColumn(Shape projShape, int column)
-        {
-            for (int row = projShape.RowsCount - 1; row >= 0; row--)
-            {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    return projShape.RowsPosition[row];
-            }
-            return -1;
-        }
-
         private int CalculateCreatedGaps(Shape projShape, int[] fullLinesIndices)
         {
             int numOfGaps = 0;
@@ -487,7 +443,7 @@ namespace Tetris
                 if (!HasNonFullLineTileInColumn(projShape, fullLinesIndices, c))
                     continue;
 
-                int lowestRowPosTile = GetLowestRowPositionTileOfShapeInColumn(projShape, c);
+                int lowestRowPosTile = projShape.GetLowestRowPositionTileInColumn(c);
 
                 for (int r = lowestRowPosTile - 1; r >= 0; r--)
                 {
@@ -514,72 +470,18 @@ namespace Tetris
             return false;
         }
 
-        private int CountLateralSharedEdges(Shape projShape)
-        {
-            int numOfEdges = 0;
-
-            for (int r = 0; r < projShape.RowsCount; r++)
-            {
-                if (projShape.RowsPosition[r] < 0)
-                    break;
-
-                numOfEdges += HasSharedEdgeInRowByLeft(projShape, r) ? 1 : 0;
-                numOfEdges += HasSharedEdgeInRowByRight(projShape, r) ? 1 : 0;
-            }
-
-            return numOfEdges;
-        }
-        private bool HasSharedEdgeInRowByLeft(Shape projShape, int row)
-        {
-            for (int column = 0; column < projShape.ColumnsCount; column++)
-            {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                {
-                    CellPosition offSetCell
-                        = new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column] - 1);
-
-                    if (isCellOutsideOrFilled(offSetCell))
-                        return true;
-                }
-            }
-            return false;
-        }
-
-        private bool HasSharedEdgeInRowByRight(Shape projShape, int row)
-        {
-            for (int column = projShape.ColumnsCount - 1; column >= 0; column--)
-            {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                {
-                    CellPosition offSetCell
-                        = new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column] + 1);
-
-                    if (isCellOutsideOrFilled(offSetCell))
-                        return true;
-                }
-            }
-            return false;
-        }
-
-        private bool isCellOutsideOrFilled(CellPosition offSetCell)
-        {
-            return offSetCell.Column >= Columns || offSetCell.Column < 0
-                || Grid[offSetCell.Row][offSetCell.Column] != GridValue.Empty;
-        }
-
-
         private int CountFilledAccessibleGaps(Shape projShape)
         {
             int numOfFilledAccessibleGaps = 0;
 
             for (int c = 0; c < projShape.ColumnsCount; c++)
             {
-                int numOfTiles = CountTilesInShapeGridColumn(projShape, c);
+                int numOfTiles = projShape.CountTilesInColumn(c);
 
                 if (numOfTiles == 0)
                     continue;
 
-                int highestRowPosTile = GetHighestRowPositionTileOfShapeInColumn(projShape, c);
+                int highestRowPosTile = projShape.GetHighestRowPositionTileInColumn(c);
 
                 if (highestRowPosTile < TopTilesOfColumns[projShape.ColumnsPosition[c]])
                     numOfFilledAccessibleGaps += numOfTiles;
@@ -587,14 +489,18 @@ namespace Tetris
             return numOfFilledAccessibleGaps;
         }
 
-        private int GetHighestRowPositionTileOfShapeInColumn(Shape projShape, int column)
+        private int CalculateHighOfShape(Shape projShape)
         {
-            for (int row = 0; row < projShape.RowsCount; row++)
+            for (int r = 0; r < projShape.RowsCount; r++)
             {
-                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
-                    return projShape.RowsPosition[row];
+                for (int c = 0; c < projShape.ColumnsCount; c++)
+                {
+                    if (projShape.ShapeGrid[r, c] != GridValue.Empty)
+                        return (projShape.RowsPosition[r]);
+                }
             }
-            return -1;
+
+            throw new InvalidOperationException("The projectedShape is empty.");
         }
 
         private int CountCreatedCliffs(Shape projShape)
@@ -615,63 +521,141 @@ namespace Tetris
             Left,
             Right
         }
+
         private int CalculateCliffSizeByDirection(Shape projShape, checkDir checkDir)
         {
             int dirOffset = checkDir == checkDir.Left ? -1 : 1;
 
-            int shapeTileColumnIndex = checkDir == checkDir.Left
-                ? projShape.StartColumnIndex : projShape.StartColumnIndex + projShape.Width - 1;
+            int edgeColumnShapeIndex = checkDir == checkDir.Left
+                ? projShape.StartColumnIndex
+                : projShape.StartColumnIndex + projShape.Width - 1;
 
-            CellPosition shapeTile = GetHighestTilePositionOfShapeInColumn(projShape, shapeTileColumnIndex);
+            int edgeColumnShapePosition = projShape.ColumnsPosition[edgeColumnShapeIndex];
 
-            int neighborColumn = shapeTile.Column + dirOffset;
-            int topTileRowOfNeighborColumn = (neighborColumn < 0 || neighborColumn >= Columns)
-                ? Rows
-                : TopTilesOfColumns[shapeTile.Column + dirOffset];
+            int edgeColumnShapeHeight = projShape.GetHighestRowPositionTileInColumn(edgeColumnShapeIndex);
 
-            int heightDifference = shapeTile.Row - topTileRowOfNeighborColumn;
+            int neighboringColumnHeight 
+                = GetTopTileOfNeighborColumn(edgeColumnShapePosition + dirOffset);
 
-            if (heightDifference >= 0)
+            int firstHeightDifference = edgeColumnShapeHeight - neighboringColumnHeight;
+
+            if (firstHeightDifference >= 0)
             {
-                int secondNeighborColumn = shapeTile.Column + (2 * dirOffset);
-                int topTileRowOfSecondNeighborColumn =
-                    (secondNeighborColumn < 0 || secondNeighborColumn >= Columns)
-                    ? Rows
-                    : TopTilesOfColumns[shapeTile.Column + (2 * dirOffset)];
+                int twoStepNeighborColumnHeight 
+                    = GetTopTileOfNeighborColumn(edgeColumnShapePosition + (2 * dirOffset));
 
-                int secondHeightDifference = topTileRowOfSecondNeighborColumn - topTileRowOfNeighborColumn;
+                int secondHeightDifference = twoStepNeighborColumnHeight - neighboringColumnHeight;
 
-                return heightDifference <= secondHeightDifference ? heightDifference : secondHeightDifference;
+                return firstHeightDifference <= secondHeightDifference ? firstHeightDifference : secondHeightDifference;
             }
             else
             {
-                int neighborShapeTileColumnIndex = shapeTileColumnIndex - dirOffset;
-
-                if (neighborShapeTileColumnIndex >= projShape.ColumnsCount || neighborShapeTileColumnIndex < 0)
+                if (edgeColumnShapeIndex - dirOffset >= projShape.ColumnsCount || edgeColumnShapeIndex - dirOffset < 0)
                     return 0;
 
-                int RowPosOfNeighborShapeTile =
-                    GetHighestRowPositionTileOfShapeInColumn(projShape, neighborShapeTileColumnIndex);
+                int innerNeighborColumnShapeHeight = projShape.GetHighestRowPositionTileInColumn(edgeColumnShapeIndex - dirOffset);
 
-                int secondHeightDifference = shapeTile.Row - RowPosOfNeighborShapeTile;
+                int secondHeightDifference = edgeColumnShapeHeight - innerNeighborColumnShapeHeight;
 
-                return heightDifference >= secondHeightDifference ? -heightDifference : -secondHeightDifference;
+                return -firstHeightDifference <= -secondHeightDifference ? -firstHeightDifference : -secondHeightDifference;
             }
         }
 
-        private CellPosition GetHighestTilePositionOfShapeInColumn(Shape projShape, int columnIndex)
-            => new CellPosition
-                (GetHighestRowPositionTileOfShapeInColumn(projShape, columnIndex),
-                projShape.ColumnsPosition[columnIndex]);
-
-        private bool IsGameOverPosition(Shape projShape)
+        private int GetTopTileOfNeighborColumn(int neighborColumn)
         {
+            return (neighborColumn < 0 || neighborColumn >= Columns)
+                ? Rows
+                : TopTilesOfColumns[neighborColumn];
+        }
+
+        private int CalculateImpactOnExistingGaps(Shape projShape, int clearedLinesCount)
+        {
+            int blockingImpact = 0;
+
             for (int c = 0; c < projShape.ColumnsCount; c++)
             {
-                if (GetHighestRowPositionTileOfShapeInColumn(projShape, c) >= Rows - HiddenRowsOnTop - 1)
-                    return true;
+                int overlayingTilesCount = projShape.CountTilesInColumn(c) - clearedLinesCount;
+
+                if (overlayingTilesCount > 0)
+                {
+                    int lowestRowPosTile = projShape.GetLowestRowPositionTileInColumn(c);
+
+                    int affectedGapsCount = Gaps[projShape.ColumnsPosition[c]].TakeWhile(x => x < lowestRowPosTile).Count();
+
+                    blockingImpact += overlayingTilesCount * affectedGapsCount;
+                }
+            }
+            return blockingImpact;
+        }
+
+        private int CountLateralSharedEdges(Shape projShape)
+        {
+            int numOfEdges = 0;
+
+            for (int r = 0; r < projShape.RowsCount; r++)
+            {
+                if (projShape.RowsPosition[r] < 0)
+                    break;
+
+                numOfEdges += HasSharedEdgeInRowByLeft(projShape, r) ? 1 : 0;
+                numOfEdges += HasSharedEdgeInRowByRight(projShape, r) ? 1 : 0;
+            }
+            return numOfEdges;
+        }
+        private bool HasSharedEdgeInRowByLeft(Shape projShape, int row)
+        {
+            for (int column = 0; column < projShape.ColumnsCount; column++)
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                {
+                    CellPosition offSetCell
+                        = new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column] - 1);
+
+                    if (isCellOutsideOrFilled(offSetCell))
+                        return true;
+                    else
+                        return false;
+                }
             }
             return false;
+        }
+
+        private bool HasSharedEdgeInRowByRight(Shape projShape, int row)
+        {
+            for (int column = projShape.ColumnsCount - 1; column >= 0; column--)
+            {
+                if (projShape.ShapeGrid[row, column] != GridValue.Empty)
+                {
+                    CellPosition offSetCell
+                        = new CellPosition(projShape.RowsPosition[row], projShape.ColumnsPosition[column] + 1);
+
+                    if (isCellOutsideOrFilled(offSetCell))
+                        return true;
+                    else
+                        return false;
+                }
+            }
+            return false;
+        }
+
+        private bool isCellOutsideOrFilled(CellPosition offSetCell)
+        {
+            return offSetCell.Column >= Columns || offSetCell.Column < 0
+                || Grid[offSetCell.Row][offSetCell.Column] != GridValue.Empty;
+        }
+
+        private ShapeMoveOption GetBestMoveOption()
+        {
+            ShapeMoveOption bestShapeMoveOption = ShapeMoveOptions[0];
+
+            foreach (ShapeMoveOption shapeMoveOption in ShapeMoveOptions)
+            {
+                bestShapeMoveOption = shapeMoveOption.Score > bestShapeMoveOption.Score
+                    ? shapeMoveOption
+                    : bestShapeMoveOption;
+            }
+
+            return bestShapeMoveOption;
         }
     }
 }

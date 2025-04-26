@@ -66,7 +66,7 @@ namespace Tetris
         private readonly Random random = new Random();
 
         public Shape BufferShape { get; protected set; }
-        public Shape CurrentShape { get; protected set; }
+        public Shape CurrentShape { get; set; }
         public Shape ProjectedShape { get; protected set; }
 
         public GameMain(int rows, int hiddenRowsOnTop, int columns)
@@ -390,7 +390,7 @@ namespace Tetris
 
         public void IncreaseGameDifficulty()
         {
-            if (IterationTick > 20)
+            if (IterationTick > 100)
                 IterationTick--;
 
             if (LockDelayTick > 100)

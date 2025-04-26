@@ -178,6 +178,37 @@ namespace Tetris
             return width;
         }
 
+        public int GetHighestRowPositionTileInColumn(int column)
+        {
+            for (int row = 0; row < RowsCount; row++)
+            {
+                if (ShapeGrid[row, column] != GridValue.Empty)
+                    return RowsPosition[row];
+            }
+            return -1;
+        }
+
+        public int GetLowestRowPositionTileInColumn(int column)
+        {
+            for (int row = RowsCount - 1; row >= 0; row--)
+            {
+                if (ShapeGrid[row, column] != GridValue.Empty)
+                    return RowsPosition[row];
+            }
+            return -1;
+        }
+
+        public int CountTilesInColumn(int column)
+        {
+            int numOfTiles = 0;
+            for (int row = 0; row < RowsCount; row++)
+            {
+                if (ShapeGrid[row, column] != GridValue.Empty)
+                    numOfTiles++;
+            }
+            return numOfTiles;
+        }
+
         private GridValue[,] set_O_ShapeValue()
         {
             GridValue[,] shapeO = new GridValue[2, 2];
