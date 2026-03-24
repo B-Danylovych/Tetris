@@ -9,12 +9,12 @@ namespace Tetris
     public enum GridValue
     {
         Empty,
-        I_Figure,
-        O_Figure,
-        J_Figure,
-        L_Figure,
-        S_Figure,
-        Z_Figure,
-        T_Figure
+        O_Shape,
+        I_Shape,
+        J_Shape,
+        L_Shape,
+        S_Shape,
+        Z_Shape,
+        T_Shape
     }
 }

@@ -1,4 +1,7 @@
-﻿using System.IO;
+﻿using System.Collections.Immutable;
+using System.ComponentModel;
+using System.IO;
+using System.Printing;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,72 +18,82 @@ namespace Tetris
 {
     public partial class MainWindow : Window
     {
+        private const int NUM_OF_TOP_RECORDS_TABLE = 5;
 
-        private readonly int rows = 20, cols = 10;
+        private readonly int maxShapesHeightInUpDirection;
+        private readonly int maxShapesWidthInUpDirection;
+
+        private readonly string topScoresPath = "TxtFiles/TopScores.txt";
+        private readonly string topLinesPath = "TxtFiles/TopLines.txt";
+
+        private readonly int rows = 20, columns = 10;
+        private readonly int hiddenRowsOnTop;
+
         private readonly Image[,] gridImages;
-        GameMain Game;
+        private readonly Dictionary<GridValue, ImageSource> gridValToImage = new Dictionary<GridValue, ImageSource>()
+        {
+            { GridValue.Empty, Images.Empty},
+            { GridValue.I_Shape, Images.I_Shape},
+            { GridValue.O_Shape, Images.O_Shape},
+            { GridValue.T_Shape, Images.T_Shape},
+            { GridValue.Z_Shape, Images.Z_Shape},
+            { GridValue.S_Shape, Images.S_Shape},
+            { GridValue.L_Shape, Images.L_Shape},
+            { GridValue.J_Shape, Images.J_Shape},
+        };
+
+        public GameMain Game;
+        private AI_Game AI_Game;
 
         private bool paused = true;
         private bool leaved = false;
         private bool windowActivated = true;
 
-        // якщо true на екрані буде top Score таблиця, якщо false top Line таблиця
-        private bool isScoreTable = true;
-
-        private readonly TextBlock[] startScoresTable;
-        private readonly TextBlock[] gameOverScoresTable;
-        private readonly TextBlock[] menuLinesTable;
-        private readonly TextBlock[] menuScoreTable;
-
-        string topScoresPath = "TxtFiles/TopScores.txt";
-        string topLinesPath = "TxtFiles/TopLines.txt";
-
-        // локально зберігатиме значення найвищих показників
-        // буде корисним якщо не існує текстових файлів
-        string[] topScores = new string[5] { "0", "0", "0", "0", "0" };
-        string[] topLines = new string[5] { "0", "0", "0", "0", "0" };
+        private bool aiActivated = false;
+        private bool aiWasActivatedDuringGame = false;
+        private int aiSpeed = 0;
 
         private bool leftIsPressed = false;
         private bool rightIsPressed = false;
 
-        private readonly Dictionary<GridValue, ImageSource> gridValToImage = new Dictionary<GridValue, ImageSource>()
-        {
-            { GridValue.Empty, null},
-            { GridValue.I_Figure, Images.I_Figure},
-            { GridValue.O_Figure, Images.O_Figure},
-            { GridValue.T_Figure, Images.T_Figure},
-            { GridValue.Z_Figure, Images.Z_Figure},
-            { GridValue.S_Figure, Images.S_Figure},
-            { GridValue.L_Figure, Images.L_Figure},
-            { GridValue.J_Figure, Images.J_Figure},
-        };
+        private TopRecord[] TopScores { get; set; }
+        private TopRecord[] TopLines { get; set; }
+        private TopRecord[] TopCurrent { get; set; }
 
         public MainWindow()
         {
             InitializeComponent();
             gridImages = SetUpGrid();
 
-            // в аргументах встановлюємо uniformGrif x:Name і relative шлях до текстового файлу
-            startScoresTable = SetUpScoresTextBlocks(StartScoresTable, topScoresPath, true);
-            gameOverScoresTable = SetUpScoresTextBlocks(GameOverScoresTable, topScoresPath, true);
-            menuLinesTable = SetUpScoresTextBlocks(MenuLinesTable, topLinesPath, false);
-            menuScoreTable = SetUpScoresTextBlocks(MenuScoreTable, topScoresPath, true);
+            TopScores = GetOrCreateTopRecords(topScoresPath);
+            TopLines = GetOrCreateTopRecords(topLinesPath);
+            TopCurrent = TopScores;
 
-            Game = new GameMain(rows, cols);
+            BindTopRecordsToUniformGridBorders(TopScores, MenuScoreTable);
+            BindTopRecordsToUniformGridBorders(TopLines, MenuLinesTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, StartScoresTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, GameOverScoresTable);
+
+            var maxShapesSizesInUpDirection = GetMaxShapesSizesInUpDirection();
+            maxShapesHeightInUpDirection = maxShapesSizesInUpDirection.maxHeight;
+            maxShapesWidthInUpDirection = maxShapesSizesInUpDirection.maxWidth;
+
+            hiddenRowsOnTop = maxShapesHeightInUpDirection;
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
         }
 
         private Image[,] SetUpGrid()
         {
-            Image[,] images = new Image[rows, cols];
+            Image[,] images = new Image[rows, columns];
             TetrisGrid.Rows = rows;
-            TetrisGrid.Columns = cols;
+            TetrisGrid.Columns = columns;
             for (int r = rows - 1; r >= 0; r--)
             {
-                for (int c = 0; c < cols; c++)
+                for (int c = 0; c < columns; c++)
                 {
                     Image image = new Image
                     {
-                        Source = null
+                        Source = Images.Empty
                     };
                     images[r, c] = image;
                     TetrisGrid.Children.Add(image);
@@ -89,117 +102,461 @@ namespace Tetris
             return images;
         }
 
-        // можна використовувати Binding для прив'язки тексту до всіх textBlock-ів одночасно,
-        // проте я не можу його зрозуміти поки що
-        private TextBlock[] SetUpScoresTextBlocks(UniformGrid uniformGrid, string path, bool isScoreTable)
+        private TopRecord[] GetOrCreateTopRecords(string path)
         {
-            List<string> txtData;
-            if (isScoreTable)
-                txtData = ReadTxtFile(path, true);
+            TopRecord[] topRecords = new TopRecord[NUM_OF_TOP_RECORDS_TABLE];
+
+            bool isFileExist = VerifyTxtFileExistenceAndCorrectData(path);
+
+            if (isFileExist)
+                topRecords = ReadTxtFile(path);
             else
-                txtData = ReadTxtFile(path, false);
+                for (int i = 0; i < topRecords.Length; i++)
+                    topRecords[i] = new TopRecord();
 
-
-            // вказувати кількість елементів [5] таким чином тут - це погана ідея, проте поки я так роблю
-            TextBlock[] textBlocks = new TextBlock[5];
-            for (int i = 0; i < textBlocks.Length; i++)
-            {
-                TextBlock textBlock = new TextBlock
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    FontSize = 26,
-                    FontWeight = FontWeights.Bold,
-                    Text = txtData[i]
-                };
-                textBlocks[i] = textBlock;
-
-                Border border = (Border)uniformGrid.Children[i];
-                border.Child = textBlock;
-            }
-
-            return textBlocks;
+            return topRecords;
         }
 
-        private List<string> ReadTxtFile(string path, bool isScoreTable)
+        private void BindTopRecordsToUniformGridBorders(TopRecord[] topRecords, UniformGrid uniformGrid)
         {
-            List<string> txtData;
-
-            if (File.Exists(path))
-                txtData = File.ReadLines(path).ToList();
-            else
+            for (int i = 0; i < topRecords.Length; i++)
             {
-                //MessageBox.Show($"File {path} doesn't exists");
-                if(isScoreTable)
-                    txtData = topScores.ToList();
-                else
-                    txtData = topLines.ToList();
+                TextBlock textBlock = CreateTopRecordTextBlock();
+
+                Binding binding = CreateBindingToTopRecordValue(topRecords[i]);
+
+                textBlock.SetBinding(TextBlock.TextProperty, binding);
+
+                AddTextBlockToBorder(textBlock, (Border)uniformGrid.Children[i]);
             }
+        }
+
+        private TextBlock CreateTopRecordTextBlock() => new TextBlock
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            FontSize = 26,
+            FontWeight = FontWeights.Bold,
+        };
+
+        private Binding CreateBindingToTopRecordValue(TopRecord topRecord)
+        => new Binding("Value")
+        {
+            Source = topRecord,
+            Mode = BindingMode.TwoWay
+        };
+
+        private void AddTextBlockToBorder(TextBlock textBlock, Border bord)
+        {
+            Border border = bord;
+            border.Child = textBlock;
+        }
+
+        private bool VerifyTxtFileExistenceAndCorrectData(string path)
+        {
+            if (File.Exists(path))
+            {
+                string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_RECORDS_TABLE).ToArray();
+
+                if (txtData.Length < NUM_OF_TOP_RECORDS_TABLE)
+                    txtData = ToFillMissingLines(txtData);
+
+                bool txtFileHasIntLines = IsTxtFileHasIntLines(txtData);
+
+                if (!txtFileHasIntLines)
+                    txtData = GetResetTxtData();
+                else
+                    txtData = SortTxtData(txtData);
+
+                File.WriteAllLines(path, txtData);
+
+                return true;
+            }
+            else
+                return false;
+        }
+
+        private string[] ToFillMissingLines(string[] incompleteTxtData)
+        {
+            List<string> completeTxtData = incompleteTxtData.ToList();
+
+            int linesToFill = NUM_OF_TOP_RECORDS_TABLE - incompleteTxtData.Length;
+            for (int i = 0; i < linesToFill; i++)
+                completeTxtData.Add("0");
+
+            return completeTxtData.ToArray();
+        }
+
+        private bool IsTxtFileHasIntLines(string[] txtData)
+        {
+            foreach (string line in txtData)
+                if (!int.TryParse(line, out _))
+                    return false;
+
+            return true;
+        }
+
+        private string[] GetResetTxtData()
+        {
+            string[] txtData = new string[NUM_OF_TOP_RECORDS_TABLE];
+            Array.Fill(txtData, "0");
+
             return txtData;
         }
 
-        private void RewriteTxtFile(List<string> newTxtData, string path, bool isScoreTable)
+        private string[] SortTxtData(string[] txtData)
         {
-            if (File.Exists(path))
-                File.WriteAllLines(path, newTxtData);
-            else
-            {
-                //MessageBox.Show($"File {path} doesn't exists");
-                if (isScoreTable)
-                    topScores = newTxtData.ToArray();
-                else
-                    topLines = newTxtData.ToArray();
-            }
+            int[] txtIntData = new int[NUM_OF_TOP_RECORDS_TABLE];
+
+            for (int i = 0; i < txtData.Length; i++)
+                txtIntData[i] = int.Parse(txtData[i]);
+
+            txtIntData = txtIntData.OrderByDescending(x => x).ToArray();
+
+            return txtIntData.Select(i => i.ToString()).ToArray();
         }
 
-        private void ArrowsButton_Click(object sender, RoutedEventArgs e)
+        private TopRecord[] ReadTxtFile(string path)
         {
-            List<string> txtData;
+            string[] txtData = File.ReadLines(path).Take(NUM_OF_TOP_RECORDS_TABLE).ToArray();
 
-            if (isScoreTable)
+            TopRecord[] parsedTxtData = new TopRecord[NUM_OF_TOP_RECORDS_TABLE];
+
+            for (int i = 0; i < parsedTxtData.Length; i++)
             {
-                isScoreTable = false;
-                StartScoresTitle.Text = "HIGH LINES";
-                GameOverScoresTitle.Text = "HIGH LINES";
-
-                txtData = ReadTxtFile(topLinesPath, isScoreTable);
-            }
-            else
-            {
-                isScoreTable = true;
-                StartScoresTitle.Text = "HIGH SCORES";
-                GameOverScoresTitle.Text = "HIGH SCORES";
-
-                txtData = ReadTxtFile(topScoresPath, isScoreTable);
+                parsedTxtData[i] = new TopRecord();
+                parsedTxtData[i].Value = int.Parse(txtData[i]);
             }
 
-            // поганий код, тому що усюди встановлюю 5 елементів вручну, в даному випадку startScoresTable.Length = 5,
-            // попри те що проходжу також і по gameOverScoresTable
-            for (int i = 0; i < startScoresTable.Length; i++)
-            {
-                startScoresTable[i].Text = txtData[i];
-                gameOverScoresTable[i].Text = txtData[i];
-            }
+            return parsedTxtData;
         }
 
-        private void DrawFiguresOnGrid(Figure figure, double opacity)
+        private void RewriteTxtFileWithTopRecords(string path, TopRecord[] topRecords)
         {
-            for (int r = 0; r < figure.RowIndexOnGrid.Length; r++)
+            string[] topRecordsValues = new string[NUM_OF_TOP_RECORDS_TABLE];
+
+            for (int i = 0; i < topRecordsValues.Length; i++)
+                topRecordsValues[i] = topRecords[i].Value.ToString();
+
+            File.WriteAllLines(path, topRecordsValues);
+        }
+
+        private (int maxHeight, int maxWidth) GetMaxShapesSizesInUpDirection()
+        {
+            int maxHeight = 0;
+            int maxWidth = 0;
+
+            foreach (GridValue gridValue in Enum.GetValues(typeof(GridValue)))
             {
-                for (int c = 0; c < figure.ColumnIndexOnGrid.Length; c++)
+                if (gridValue != GridValue.Empty)
                 {
-                    if (figure.RowIndexOnGrid[r] > gridImages.GetLength(0) - 1 || figure.RowIndexOnGrid[r] < 0 ||
-                       figure.ColumnIndexOnGrid[c] > gridImages.GetLength(1) - 1 || figure.ColumnIndexOnGrid[c] < 0)
-                    {
-                        continue;
-                    }
-                    if (figure.FigureValue[r, c] != GridValue.Empty)
-                    {
-                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Source = gridValToImage[figure.FigureValue[r, c]];
-                        gridImages[figure.RowIndexOnGrid[r], figure.ColumnIndexOnGrid[c]].Opacity = opacity;
-                    }
+                    Shape shape = new Shape(gridValue);
+
+                    int currentHeight = shape.Height;
+
+                    int currentWidth = shape.Width;
+
+                    maxHeight = Math.Max(maxHeight, currentHeight);
+                    maxWidth = Math.Max(maxWidth, currentWidth);
                 }
             }
+
+            return (maxHeight, maxWidth);
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (paused || aiActivated)
+                return;
+
+            switch (e.Key)
+            {
+                case Key.A:
+                case Key.Left:
+                    HandleLeftRightKeyPress(Game.MoveLeft, leftIsPressed);
+                    leftIsPressed = true;
+                    break;
+                case Key.D:
+                case Key.Right:
+                    HandleLeftRightKeyPress(Game.MoveRight, rightIsPressed);
+                    rightIsPressed = true;
+                    break;
+                case Key.S:
+                case Key.Down:
+                    Game.ActivateFastDrop();
+                    break;
+                case Key.W:
+                case Key.Up:
+                    HandleRotatingKeyPress(GameMain.DirectionOfRotation.isClockwise);
+                    break;
+                case Key.Z:
+                    HandleRotatingKeyPress(GameMain.DirectionOfRotation.isCounterclockwise);
+                    break;
+            }
+        }
+
+        private void HandleLeftRightKeyPress(Func<bool> moveInDirection, bool isKeyPressed)
+        {
+            bool isMoved = moveInDirection();
+            if (isMoved)
+            {
+                if (isKeyPressed)
+                    moveInDirection();
+
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
+        }
+
+        private void HandleRotatingKeyPress(GameMain.DirectionOfRotation directionOfRotation)
+        {
+            if (Game.Rotate(directionOfRotation))
+            {
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
+        }
+
+        private void Window_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (aiActivated)
+                return;
+
+            switch (e.Key)
+            {
+                case Key.S:
+                case Key.Down:
+                    Game.DeactivateFastDrop();
+                    break;
+                case Key.A:
+                case Key.Left:
+                    leftIsPressed = false;
+                    break;
+                case Key.D:
+                case Key.Right:
+                    rightIsPressed = false;
+                    break;
+            }
+        }
+
+        private async void Play_Click(object sender, RoutedEventArgs e)
+        {
+            StartBorder.Visibility = Visibility.Collapsed;
+            await GameStartToEnd();
+        }
+
+        private async Task GameStartToEnd()
+        {
+            DrawShapeInBufferGrid(Game.BufferShape);
+            await ShowCountDown();
+            Game.SetShapes();
+            DrawShapeInBufferGrid(Game.BufferShape);
+            await GameLoop();
+            aiActivated = false;
+            if (Game.IsGameOver)
+            {
+                if(!aiWasActivatedDuringGame)
+                    NewTopRecords();
+                else
+                {
+                    GameOverScoreText.Text = $"AI Score: ";
+                    GameOverLineText.Text = $"AI Lines: ";
+                    GameOverScoreText.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverLineText.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Red);
+                    GameOverLineNum.Foreground = new SolidColorBrush(Colors.Red);
+                }
+                GameOverScoreNum.Text = Game.ScoreNum.ToString();
+                GameOverLineNum.Text = Game.LinesNum.ToString();
+                Pause_AI_Grid.Visibility = Visibility.Collapsed;
+                CollapseAI_Elements();
+                MenuBorder.Visibility = Visibility.Visible;
+                GameOverBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ScoreTextBlock.Text = $"Score: 0";
+                LineTextBlock.Text = $"Lines: 0";
+                ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+                LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            }
+            aiWasActivatedDuringGame = false;
+        }
+
+        private async Task ShowCountDown()
+        {
+            for (int i = 3; i >= 1; i--)
+            {
+                CountDownText.Text = i.ToString();
+                await Task.Delay(500);
+            }
+            CountDownText.Visibility = Visibility.Collapsed;
+            MenuBorder.Visibility = Visibility.Collapsed;
+            Pause_AI_Grid.Visibility = Visibility.Visible;
+            AISpeedSlider.Visibility = Visibility.Visible;
+            paused = false;
+            if (!windowActivated)
+                PauseGame();
+        }
+
+        private async Task GameLoop()
+        {
+            while (!Game.IsGameOver)
+            {
+                await WaitPause();
+                if (leaved)
+                {
+                    leaved = false;
+                    return;
+                }
+                await RunGame();
+            }
+        }
+
+        private async Task RunGame()
+        {
+            if (aiActivated)
+            {
+                AI_Game.ResetValues();
+                await MoveByAIBestMoveOption();
+                if (leaved)
+                    return;
+                AI_Game.UptadeGrid();
+            }
+            else
+                await Task.Delay(Game.IterationTick);
+
+            bool canMoveDown = Game.MoveDown();
+            if (!canMoveDown)
+            {
+                if (!aiActivated || aiSpeed < 3)
+                    await Task.Delay(Game.LockDelayTick);
+                else
+                    await Task.Delay(1);
+
+                canMoveDown = Game.MoveDown();
+                if (!canMoveDown)
+                {
+                    Game.SetShapeOnGrid();
+                    Game.RemoveLines();
+                    Game.CheckGameOver();
+                    if (Game.IsGameOver)
+                        return;
+                    Game.SetShapes();
+                    DrawShapeInBufferGrid(Game.BufferShape);
+                    Game.IncreaseGameDifficulty();
+
+                    ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
+                    LineTextBlock.Text = $"Lines: {Game.LinesNum}";
+                }
+            }
+
+            DrawGameGrid();
+        }
+
+        private async Task MoveByAIBestMoveOption()
+        {
+            if (aiSpeed < 2)
+            {
+                foreach (Action action in AI_Game.BestMoveOption.Actions)
+                {
+                    await Task.Delay(aiSpeed == 0 ? 50 : 20);
+
+                    if (aiSpeed >= 2)
+                        break;
+
+                    if (!aiActivated)
+                        return;
+
+                    await WaitPause();
+                    if (leaved)
+                        return;
+
+                    action.Invoke();
+                    Game.SetProjectedShape();
+                    DrawGameGrid();
+                }
+
+                while (Game.MoveDown())
+                {
+                    await Task.Delay(aiSpeed == 0 ? 50 : 20);
+
+                    if (aiSpeed >= 2)
+                        break;
+
+                    if (!aiActivated)
+                        return;
+
+                    await WaitPause();
+                    if (leaved)
+                        return;
+
+                    DrawGameGrid();
+                }
+            }
+            if (aiSpeed >= 2)
+            {
+                Game.CurrentShape = AI_Game.BestMoveOption.ProjectedShape.DeepCopy();
+                Game.SetProjectedShape();
+                DrawGameGrid();
+            }
+        }
+
+        private async Task WaitPause()
+        {
+            while (paused)
+            {
+                if (leaved)
+                    return;
+
+                await Task.Delay(100);
+            }
+        }
+
+        public void DrawShapeInBufferGrid(Shape shape)
+        {
+            int shapeWidth = shape.ColumnsCount;
+            int shapeHeight = shape.Height;
+
+            int startRowValueIndex = GetFirstNonEmptyRowIndexOfShapeValue(shape);
+            int endRowValueIndex = startRowValueIndex + shapeHeight;
+
+            BufferShapeGrid.Children.Clear();
+
+            BufferShapeGrid.Columns = shapeWidth;
+            BufferShapeGrid.Rows = shapeHeight;
+
+            double tileSize = BufferShapeBorder.ActualWidth / maxShapesWidthInUpDirection;
+
+            for (int r = startRowValueIndex; r < endRowValueIndex; r++)
+            {
+                for (int c = 0; c < shapeWidth; c++)
+                {
+                    Image image = new Image
+                    {
+                        Source = gridValToImage[shape.ShapeGrid[r, c]],
+                        Width = tileSize,
+                    };
+                    BufferShapeGrid.Children.Add(image);
+                }
+            }
+        }
+
+        private int GetFirstNonEmptyRowIndexOfShapeValue(Shape shape)
+        {
+            for (int r = 0; r < shape.RowsCount; r++)
+                for (int c = 0; c < shape.ColumnsCount; c++)
+                    if (shape.ShapeGrid[r, c] != GridValue.Empty)
+                        return r;
+
+            throw new InvalidOperationException("The loop did not return a value.");
+        }
+
+        private void DrawGameGrid()
+        {
+            DrawGrid();
+            DrawShapesOnGridWithOpacity(Game.ProjectedShape, 0.2);
+            DrawShapesOnGridWithOpacity(Game.CurrentShape, 1);
         }
 
         private void DrawGrid()
@@ -213,272 +570,88 @@ namespace Tetris
                 }
             }
         }
-
-        private void Draw()
+        private void DrawShapesOnGridWithOpacity(Shape shape, double opacity)
         {
-            DrawGrid();
-            DrawFiguresOnGrid(Game.ProjectedFigure, 0.2);
-            DrawFiguresOnGrid(Game.CurrentFigure, 1);
-        }
-
-        public void DrawBufferFigure()
-        {
-            Figure figure = Game.BufferFigure;
-
-            int countCols = figure.FigureValue.GetLength(1);
-            int countRows = 0;
-            int startRowsIndex = 0;
-
-            for (int r = 0; r < figure.FigureValue.GetLength(0); r++)
+            for (int r = 0; r < shape.RowsCount; r++)
             {
-                for (int c = 0; c < countCols; c++)
+                for (int c = 0; c < shape.ColumnsCount; c++)
                 {
-                    if (figure.FigureValue[r, c] != GridValue.Empty)
-                    {
-                        if (countRows == 0)
-                            startRowsIndex = r;
+                    GridValue shapeTile = shape.ShapeGrid[r, c];
+                    int rowPosition = shape.RowsPosition[r];
+                    int columnPosition = shape.ColumnsPosition[c];
 
-                        countRows++;
-                        break;
+                    if (shapeTile != GridValue.Empty && rowPosition < gridImages.GetLength(0))
+                    {
+                        gridImages[rowPosition, columnPosition].Source = gridValToImage[shapeTile];
+                        gridImages[rowPosition, columnPosition].Opacity = opacity;
                     }
                 }
             }
+        }
 
-            BufferFigureGrid.Children.Clear();
-
-            BufferFigureGrid.Columns = countCols;
-            BufferFigureGrid.Rows = countRows;
-
-            // ділимо на 4, оскільки максимальна ширина тетраміно фігури - 4, а саме у I Фігурі, яка "лежить"(має Direction - Top/Bottom)
-            double tileSize = BufferFigureBorder.ActualWidth / 4;
-
-            for (int r = startRowsIndex; r < startRowsIndex + countRows; r++)
+        private void NewTopRecords()
+        {
+            if (Game.ScoreNum > TopScores.Last().Value)
             {
-                for (int c = 0; c < countCols; c++)
-                {
-                    Image image = new Image
-                    {
-                        Source = gridValToImage[figure.FigureValue[r, c]],
-                        Width = tileSize,
-                    };
-                    BufferFigureGrid.Children.Add(image);
-                }
+                AddNewRecordAndSortTopRecords(TopScores, Game.ScoreNum);
+
+                if (File.Exists(topScoresPath))
+                    RewriteTxtFileWithTopRecords(topScoresPath, TopScores);
+            }
+            if (Game.LinesNum > TopLines.Last().Value)
+            {
+                AddNewRecordAndSortTopRecords(TopLines, Game.LinesNum);
+
+                if (File.Exists(topLinesPath))
+                    RewriteTxtFileWithTopRecords(topLinesPath, TopLines);
             }
         }
 
-        private void Window_KeyDown(object sender, KeyEventArgs e)
+        private void AddNewRecordAndSortTopRecords(TopRecord[] topRecords, int newScore)
         {
-            if (paused)
-                return;
+            int[] sortedRecords = topRecords.Select(x => x.Value).ToArray();
 
-            bool canMove;
-            switch (e.Key)
-            {
-                case Key.A:
-                case Key.Left:
-                    canMove = Game.MoveLeft();
-                    Draw();
-                    if (canMove && leftIsPressed)
-                    {
-                        Game.MoveLeft();
-                        Draw();
-                    }
-                    leftIsPressed = true;
-                    break;
-                case Key.D:
-                case Key.Right:
-                    canMove = Game.MoveRight();
-                    Draw();
-                    if (canMove && rightIsPressed)
-                    {
-                        Game.MoveRight();
-                        Draw();
-                    }
-                    rightIsPressed = true;
-                    break;
-                case Key.S:
-                case Key.Down:
-                    Game.IterationTick = 50;
-                    break;
-                case Key.W:
-                case Key.Up:
-                    Game.Rotate(true);
-                    Draw();
-                    break;
-                case Key.Z:
-                    Game.Rotate(false);
-                    Draw();
-                    break;
-            }
+            sortedRecords[sortedRecords.Length - 1] = newScore;
+            sortedRecords = sortedRecords.OrderDescending().ToArray();
+
+            for (int i = 0; i < topRecords.Length; i++)
+                topRecords[i].Value = sortedRecords[i];
         }
 
-        private void Window_KeyUp(object sender, KeyEventArgs e)
+        private void ArrowsButton_Click(object sender, RoutedEventArgs e)
         {
-            switch (e.Key)
+            if (TopCurrent == TopScores)
             {
-                case Key.S:
-                case Key.Down:
-                    Game.IterationTick = 500;
-                    break;
-                case Key.A:
-                case Key.Left:
-                    leftIsPressed = false;
-                    break;
-                case Key.D:
-                case Key.Right:
-                    rightIsPressed = false;
-                    break;
-            }
-        }
-
-        private async Task ShowCountDown()
-        {
-            for (int i = 3; i >= 1; i--)
-            {
-                CountDownText.Text = i.ToString();
-                await Task.Delay(500);
-            }
-            CountDownText.Visibility = Visibility.Collapsed;
-            MenuBorder.Visibility = Visibility.Collapsed;
-            PauseButton.Visibility = Visibility.Visible;
-            paused = false;
-            if (!windowActivated)
-            {
-                PauseGame();
-            }
-        }
-
-        private async Task GameLoop()
-        {
-            while (!Game.IsGameOver)
-            {
-                if (paused)
-                {
-                    if (leaved)
-                    {
-                        leaved = false;
-                        return;
-                    }
-                    await Task.Delay(100);
-                    continue;
-                }
-
-                await RunGame();
-            }
-        }
-
-        private async Task RunGame()
-        {
-            await Task.Delay(Game.IterationTick);
-
-            if (paused)
-                return;
-
-            bool canMoveDown = Game.MoveDown();
-            if (!canMoveDown)
-            {
-                await Task.Delay(Game.LockDelayTick);
-                canMoveDown = Game.MoveDown();
-                if (!canMoveDown)
-                {
-                    Game.AddFigureTilesOnGrid();
-                    Game.RemoveLines();
-                    Game.checkGameOver();
-                    if (Game.IsGameOver)
-                        return;
-                    Game.AddFigure();
-                    DrawBufferFigure();
-                    if (Game.IterationTick > 20)
-                        Game.IterationTick--;
-
-                    if (Game.LockDelayTick > 100)
-                        Game.LockDelayTick--;
-
-                    ScoreTextBlock.Text = $"Score: {Game.ScoreNum}";
-                    LineTextBlock.Text = $"Lines: {Game.LinesNum}";
-                }
-            }
-
-            Draw();
-        }
-
-        private void NewTopScores()
-        {
-            List<int> txtDataScore = ReadTxtFile(topScoresPath, true).ConvertAll(int.Parse);
-            List<int> txtDataLines = ReadTxtFile(topLinesPath, false).ConvertAll(int.Parse);
-
-            if (Game.ScoreNum > txtDataScore.Last())
-            {
-                txtDataScore[txtDataScore.Count - 1] = Game.ScoreNum;
-                txtDataScore.Sort();
-                txtDataScore.Reverse();
-            }
-            if (Game.LinesNum > txtDataLines.Last())
-            {
-                txtDataLines[txtDataLines.Count - 1] = Game.LinesNum;
-                txtDataLines.Sort();
-                txtDataLines.Reverse();
-            }
-
-            RewriteTxtFile(txtDataScore.ConvertAll(i => i.ToString()), topScoresPath, true);
-            RewriteTxtFile(txtDataLines.ConvertAll(i => i.ToString()), topLinesPath, false);
-
-            // поганий код з startScoresTable.Length(вкотре нагадаю) :)
-            for (int i = 0; i < startScoresTable.Length; i++)
-            {
-                if (this.isScoreTable)
-                {
-                    startScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
-                    gameOverScoresTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
-                }
-                else
-                {
-                    startScoresTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
-                    gameOverScoresTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
-                }
-                menuScoreTable[i].Text = txtDataScore.ConvertAll(i => i.ToString())[i];
-                menuLinesTable[i].Text = txtDataLines.ConvertAll(i => i.ToString())[i];
-            }
-        }
-
-        private async Task StartToEnd()
-        {
-            DrawBufferFigure();
-            await ShowCountDown();
-            Game.AddFigure();
-            DrawBufferFigure();
-            await GameLoop();
-            if (Game.IsGameOver)
-            {
-                NewTopScores();
-                GameOverScoreNum.Text = Game.ScoreNum.ToString();
-                GameOverLineNum.Text = Game.LinesNum.ToString();
-                PauseButton.Visibility = Visibility.Collapsed;
-                MenuBorder.Visibility = Visibility.Visible;
-                GameOverBorder.Visibility = Visibility.Visible;
+                TopCurrent = TopLines;
+                StartScoresTitle.Text = GameOverScoresTitle.Text = "HIGH LINES";
             }
             else
             {
-                ScoreTextBlock.Text = $"Score: 0";
-                LineTextBlock.Text = $"Lines: 0";
+                TopCurrent = TopScores;
+                StartScoresTitle.Text = GameOverScoresTitle.Text = "HIGH SCORES";
             }
+
+            BindTopRecordsToUniformGridBorders(TopCurrent, StartScoresTable);
+            BindTopRecordsToUniformGridBorders(TopCurrent, GameOverScoresTable);
         }
 
         private async void PlayAgain_Click(object sender, RoutedEventArgs e)
         {
+            GameOverScoreText.Text = $"Your Score: ";
+            GameOverLineText.Text = $"Your Lines: ";
             ScoreTextBlock.Text = $"Score: 0";
             LineTextBlock.Text = $"Lines: 0";
+            GameOverScoreText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineNum.Foreground = new SolidColorBrush(Colors.Black);
+            ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
             DrawGrid();
-            await StartToEnd();
-        }
-
-        private async void Play_Click(object sender, RoutedEventArgs e)
-        {
-            StartBorder.Visibility = Visibility.Collapsed;
-            await StartToEnd();
+            await GameStartToEnd();
         }
 
         private async void Resume_Click(object sender, RoutedEventArgs e)
@@ -489,28 +662,24 @@ namespace Tetris
         }
 
         private void Window_Activated(object sender, EventArgs e)
-        {
-            windowActivated = true;
-        }
+            => windowActivated = true;
 
         private void Window_Deactivated(object sender, EventArgs e)
         {
             windowActivated = false;
-            if (PauseButton.Visibility == Visibility.Visible)
-            {
+
+            if (!paused)
                 PauseGame();
-            }
         }
 
         private void Pause_Click(object sender, RoutedEventArgs e)
-        {
-            PauseGame();
-        }
+            => PauseGame();
 
         private void PauseGame()
         {
             paused = true;
-            PauseButton.Visibility = Visibility.Collapsed;
+            Pause_AI_Grid.Visibility = Visibility.Collapsed;
+            AISpeedSlider.Visibility = Visibility.Collapsed;
             MenuBorder.Visibility = Visibility.Visible;
             MainMenuBorder.Visibility = Visibility.Visible;
         }
@@ -537,12 +706,15 @@ namespace Tetris
         {
             leaved = true;
             QuitMenuBorder.Visibility = Visibility.Collapsed;
+            CollapseAI_Elements();
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;
 
-            NewTopScores();
+            if(!aiWasActivatedDuringGame)
+                NewTopRecords();
 
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
+            aiActivated = false;
             DrawGrid();
         }
 
@@ -552,14 +724,85 @@ namespace Tetris
             MainMenuBorder.Visibility = Visibility.Visible;
         }
 
+        private void AI_Button_Click(object sender, RoutedEventArgs e)
+        {
+            if (!aiActivated)
+            {
+                aiWasActivatedDuringGame = true;
+                ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Red);
+                LineTextBlock.Foreground = new SolidColorBrush(Colors.Red);
+
+                AI_Button.Content = "STOP";
+                PauseButton.FontSize = 20;
+                AI_Button.FontSize = 20;
+
+                GameInfoGrid.RowDefinitions.Clear();
+
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.4, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+                GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.2, GridUnitType.Star) });
+
+                Grid.SetRow(Pause_AI_Grid, 3);
+
+                AISpeedSlider.Visibility = Visibility.Visible;
+
+                Pause_AI_Grid.Margin = new Thickness(20, 0, 20, 20);
+
+                AI_Game = new AI_Game(Game);
+                aiActivated = true;
+            }
+            else
+            {
+                CollapseAI_Elements();
+                aiActivated = false;
+            }
+
+            Game.DeactivateFastDrop();
+            leftIsPressed = false;
+            rightIsPressed = false;
+        }
+
+        private void CollapseAI_Elements()
+        {
+            AI_Button.Content = "AI";
+            PauseButton.FontSize = 30;
+            AI_Button.FontSize = 30;
+
+            GameInfoGrid.RowDefinitions.Clear();
+
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.4, GridUnitType.Star) });
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.3, GridUnitType.Star) });
+            GameInfoGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0.3, GridUnitType.Star) });
+
+            AISpeedSlider.Visibility = Visibility.Collapsed;
+
+            Grid.SetRow(Pause_AI_Grid, 2);
+
+            Pause_AI_Grid.Margin = new Thickness(20, 20, 20, 20);
+        }
+
+        private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            aiSpeed = (int)AISpeedSlider.Value;
+        }
+
         private void HomeButton_Click(object sender, RoutedEventArgs e)
         {
+            GameOverScoreText.Text = $"Your Score: ";
+            GameOverLineText.Text = $"Your Lines: ";
             ScoreTextBlock.Text = $"Score: 0";
             LineTextBlock.Text = $"Lines: 0";
+            ScoreTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            LineTextBlock.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineText.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverScoreNum.Foreground = new SolidColorBrush(Colors.Black);
+            GameOverLineNum.Foreground = new SolidColorBrush(Colors.Black);
             GameOverBorder.Visibility = Visibility.Collapsed;
             CountDownText.Visibility = Visibility.Visible;
             StartBorder.Visibility = Visibility.Visible;
-            Game = new GameMain(rows, cols);
+            Game = new GameMain(rows, hiddenRowsOnTop, columns);
             DrawGrid();
         }
     }

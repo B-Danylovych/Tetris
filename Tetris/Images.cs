@@ -10,19 +10,17 @@ namespace Tetris
 {
     public static class Images
     {
-        public readonly static ImageSource Empty = LoadImage("Empty.png");
-        public readonly static ImageSource I_Figure = LoadImage("I_Red.png");
-        public readonly static ImageSource O_Figure = LoadImage("O_Yellow.png");
-        public readonly static ImageSource J_Figure = LoadImage("J_Blue.png");
-        public readonly static ImageSource L_Figure = LoadImage("L_Orange.png");
-        public readonly static ImageSource S_Figure = LoadImage("S_Magenta.png");
-        public readonly static ImageSource Z_Figure = LoadImage("Z_Green.png");
-        public readonly static ImageSource T_Figure = LoadImage("T_Cyan.png");
+        public readonly static ImageSource Empty = new BitmapImage();
+        public readonly static ImageSource I_Shape = LoadImage("I_Red.png");
+        public readonly static ImageSource O_Shape = LoadImage("O_Yellow.png");
+        public readonly static ImageSource J_Shape = LoadImage("J_Blue.png");
+        public readonly static ImageSource L_Shape = LoadImage("L_Orange.png");
+        public readonly static ImageSource S_Shape = LoadImage("S_Magenta.png");
+        public readonly static ImageSource Z_Shape = LoadImage("Z_Green.png");
+        public readonly static ImageSource T_Shape = LoadImage("T_Cyan.png");
         
-        private static ImageSource LoadImage(string fileName)
-        {
-            return new BitmapImage(new Uri($"Images/{fileName}", UriKind.Relative));
-        }
+        private static ImageSource LoadImage(string fileName) => 
+            new BitmapImage(new Uri($"Images/{fileName}", UriKind.Relative));
     }
 
 }

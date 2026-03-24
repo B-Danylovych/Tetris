@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -11,36 +12,49 @@ namespace Tetris
 
     public class GameMain
     {
+        public int HiddenRowsOnTop { get; }
         public int Rows { get; }
-        public int Cols { get; }
-        private readonly int HiddenRowOnTop = 2;
+        public int Columns { get; }
 
-        public List<List<GridValue>> Grid { get; private set; }
+        public List<List<GridValue>> Grid { get; protected set; }
 
-        private int _lockDelayTick = 500;
+        private bool isFastDropActive = false;
+
         private int _iterationTick = 500;
-
-        public int LockDelayTick
-        {
-            get => _lockDelayTick;
-            set
-            {
-                if (value > 0)
-                    _lockDelayTick = value;
-                else
-                    throw new ArgumentException("LockDelayTick must be a positive number");
-            }
-        }
-
         public int IterationTick
         {
-            get => _iterationTick;
-            set
+            get
+            {
+                if (isFastDropActive)
+                    return 20;
+                else
+                    return _iterationTick;
+            }
+            private set
             {
                 if (value > 0)
                     _iterationTick = value;
                 else
                     throw new ArgumentException("IterationTick must be a positive number");
+            }
+        }
+
+        private int _lockDelayTick = 500;
+        public int LockDelayTick
+        {
+            get 
+            {
+                if (isFastDropActive)
+                    return 100;
+                else
+                    return _lockDelayTick;
+            }
+            private set
+            {
+                if (value > 0)
+                    _lockDelayTick = value;
+                else
+                    throw new ArgumentException("LockDelayTick must be a positive number");
             }
         }
 
@@ -51,115 +65,133 @@ namespace Tetris
 
         private readonly Random random = new Random();
 
-        public Figure BufferFigure { get; private set; }
-        public Figure CurrentFigure { get; private set; }
-        public Figure ProjectedFigure { get; private set; }
+        public Shape BufferShape { get; protected set; }
+        public Shape CurrentShape { get; set; }
+        public Shape ProjectedShape { get; protected set; }
 
-        public GameMain(int rows, int cols)
+        public GameMain(int rows, int hiddenRowsOnTop, int columns)
         {
-            Rows = rows + HiddenRowOnTop;
-            Cols = cols;
-            Grid = Enumerable.Range(0, Rows).Select(i => Enumerable.Repeat(GridValue.Empty, Cols).ToList()).ToList();
+            HiddenRowsOnTop = hiddenRowsOnTop;
+            Rows = rows + HiddenRowsOnTop;
+            Columns = columns;
+            Grid = Enumerable.Range(0, Rows)
+                .Select(i => Enumerable.Repeat(GridValue.Empty, Columns).ToList()).ToList();
 
-            AddFigureInBuffer();
+            SetBufferShape();
+
+            // для того щоб позбавитись від "non-null value" попереджень написав цей код:
+            CurrentShape = BufferShape.DeepCopy();
+            ProjectedShape = CurrentShape.DeepCopy();
         }
 
-        private void AddFigureInBuffer()
+        public void SetShapes()
         {
-            GridValue typeFigure = GetRandomGridValue();
-            BufferFigure = new Figure(typeFigure, Dir_Rotation.Up);
+            SetCurrentShape();
+            SetProjectedShape();
+            SetBufferShape();
         }
 
-        public GridValue GetRandomGridValue()
+        [MemberNotNull(nameof(BufferShape))]
+        public void SetBufferShape() => 
+            BufferShape = new Shape(GetRandomShapeType());
+
+        private GridValue GetRandomShapeType()
         {
-            Array values = Enum.GetValues(typeof(GridValue));
+            Array gridValues = Enum.GetValues(typeof(GridValue));
             GridValue randomValue;
 
             do
             {
-                randomValue = (GridValue)values.GetValue(this.random.Next(values.Length));
-            } while (randomValue == GridValue.Empty);
+                object? gridValue = gridValues.GetValue(random.Next(gridValues.Length));
+                if (gridValue == null)
+                    throw new InvalidOperationException("Unexpected null value in enum.");
+
+                randomValue = (GridValue)gridValue;
+            }
+            while (randomValue == GridValue.Empty);
 
             return randomValue;
         }
 
-        public void AddFigure()
+        public void SetCurrentShape()
         {
-            CurrentFigure = BufferFigure.Clone();
+            CurrentShape = BufferShape.DeepCopy();
 
-            int figureWidth = CurrentFigure.ColumnCount;
-            int figureHeight = CurrentFigure.RowCount;
+            int shapeWidth = CurrentShape.ColumnsCount;
+            int shapeHeight = CurrentShape.RowsCount;
 
-            CurrentFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight)
+            int[] rowsPosition = Enumerable.Range(0, shapeHeight)
                 .Select(i => this.Rows - 1 - i).ToArray();
-            CurrentFigure.ColumnIndexOnGrid = Enumerable.Range(0, figureWidth)
-                .Select(i => (this.Cols / 2 - figureWidth / 2) + i).ToArray();
+            int[] columsPosition = Enumerable.Range(0, shapeWidth)
+                .Select(i => (this.Columns / 2 - shapeWidth / 2) + i).ToArray();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
-            AddFigureInBuffer();
+            CurrentShape.SetNewPositionOnGrid(rowsPosition, columsPosition);            
         }
 
-        private Figure CheckFallDown(Figure curFigure)
+        public void SetProjectedShape() => 
+            ProjectedShape = GetProjectedDownShape(CurrentShape);
+
+        private Shape GetProjectedDownShape(Shape curShape)
         {
-            List<int> projFall = new();
-            int highestProjectionOfTiles;
-            Figure projectedFigure = curFigure.Clone();
+            int highestProjTile = GetHighestProjectedTileRow(curShape);
 
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
+            Shape projectedShape = curShape.DeepCopy();
 
-            for (int c = 0; c < figureWidth; c++)
+            int[] projRowsPosition = Enumerable.Range(0, projectedShape.RowsCount)
+                .Select(i => highestProjTile - i).ToArray();
+
+            projectedShape.SetNewPositionOnGrid(projRowsPosition, projectedShape.ColumnsPosition);
+
+            return projectedShape;
+        }
+
+        private int GetHighestProjectedTileRow(Shape curShape)
+        {
+            List<int> projTilesFall = new();
+
+            int shapeWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
+
+            for (int c = 0; c < shapeWidth; c++)
             {
-                for (int r = figureHeight - 1; r >= 0; r--)
+                for (int r = shapeHeight - 1; r >= 0; r--)
                 {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
-                        for (int i = curFigure.RowIndexOnGrid[r]; i >= 0; i--)
-                        {
-                            if (i == 0 || Grid[i - 1][curFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
-                            {
-                                projFall.Add(i + r);
-                                break;
-                            }
-                        }
+                        projTilesFall.Add(ProjectTileDown
+                            (curShape.RowsPosition[r], curShape.ColumnsPosition[c]) 
+                            + r);
+                        // добавлячи r отримуємо RowPosition[0] індекс
+                        // відносно проектованої плитки
                         break;
                     }
                 }
             }
 
-            highestProjectionOfTiles = projFall.Max();
-
-            projectedFigure.RowIndexOnGrid = Enumerable.Range(0, figureHeight).Select(i => highestProjectionOfTiles - i).ToArray();
-            projectedFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
-
-            return projectedFigure;
+            return projTilesFall.Max();
         }
 
-        public bool MoveDown()
+        private int ProjectTileDown(int rowPosOnGrid, int columnPosOnGrid)
         {
-            if (CurrentFigure.RowIndexOnGrid[0] > ProjectedFigure.RowIndexOnGrid[0])
-            {
-                for (int r = 0; r < CurrentFigure.RowCount; r++)
-                {
-                    CurrentFigure.RowIndexOnGrid[r]--;
-                }
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            for (int i = rowPosOnGrid; i >= 0; i--)
+                if (i == 0 || Grid[i - 1][columnPosOnGrid] != GridValue.Empty)
+                    return i;
+
+            throw new InvalidOperationException("The loop did not return a value.");
         }
 
-        public void AddFigureTilesOnGrid()
+        public void SetShapeOnGrid()
         {
-            for (int r = 0; r < CurrentFigure.RowCount; r++)
+            for (int r = 0; r < CurrentShape.RowsCount; r++)
             {
-                for (int c = 0; c < CurrentFigure.ColumnCount; c++)
+                for (int c = 0; c < CurrentShape.ColumnsCount; c++)
                 {
-                    if (CurrentFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (CurrentShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
-                        Grid[CurrentFigure.RowIndexOnGrid[r]][CurrentFigure.ColumnIndexOnGrid[c]] = CurrentFigure.FigureValue[r, c];
+                        int rowOnGrid = CurrentShape.RowsPosition[r];
+                        int columnOnGrid = CurrentShape.ColumnsPosition[c];
+
+                        Grid[rowOnGrid][columnOnGrid] = CurrentShape.ShapeGrid[r, c];
                     }
                 }
             }
@@ -168,138 +200,173 @@ namespace Tetris
         public void RemoveLines()
         {
             int linesRemoved = 0;
-            for (int r = 0; r < Grid.Count - HiddenRowOnTop; r++)
+            foreach(int r in CurrentShape.RowsPosition)
             {
-                bool isFull = true;
-                for (int c = 0; c < Grid[r].Count; c++)
-                {
-                    if (Grid[r][c] == GridValue.Empty)
-                    {
-                        isFull = false;
-                        break;
-                    }
-                }
-                if (isFull)
+                if (r < 0)
+                    continue;
+
+                if (isLineFullCheck(Grid[r].ToArray()))
                 {
                     Grid.RemoveAt(r);
-                    Grid.Add(Enumerable.Repeat(GridValue.Empty, Cols).ToList());
+                    Grid.Add(Enumerable.Repeat(GridValue.Empty, Columns).ToList());
                     linesRemoved++;
-                    r--;
                 }
             }
-            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=1600+400=2000
-            int addScore = (linesRemoved < 4) ? (int)Math.Pow(linesRemoved * 10, 2) : (int)Math.Pow(linesRemoved * 10, 2) + 400;
+            SetNewScore(linesRemoved);
+        }
+
+        protected bool isLineFullCheck(GridValue[] line)
+        {
+            foreach (GridValue gridValue in line)
+                if (gridValue == GridValue.Empty)
+                    return false;
+
+            return true;
+        }
+
+        private void SetNewScore(int linesRemoved)
+        {
+            // 10*10 = 100, 20*20=400, 30*30 = 900, 40*40+400=2000
+            int addScore = (int)Math.Pow(linesRemoved * 10, 2);
+            addScore += (linesRemoved < 4) ? 0 : 400;
             this.ScoreNum += addScore;
             this.LinesNum += linesRemoved;
         }
 
-        private bool CanMoveLeft(Figure curFigure)
+        public bool MoveDown()
         {
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
-
-            for (int r = 0; r < figureHeight; r++)
+            if (CurrentShape.RowsPosition[0] > ProjectedShape.RowsPosition[0])
             {
-                for (int c = 0; c < figureWidth; c++)
-                {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
-                    {
-                        if (curFigure.ColumnIndexOnGrid[c] == 0 || 
-                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] - 1] != GridValue.Empty)
-                        {
-                            return false;
-                        }
-                        break;
-                    }
-                }
+                CurrentShape.MovePositionDown();
+                return true;
             }
-            return true;
+            else
+                return false;
         }
 
         public bool MoveLeft()
         {
-            if (!CanMoveLeft(CurrentFigure))
+            if (!CanMoveLeft(CurrentShape))
                 return false;
 
-            for (int c = 0; c < CurrentFigure.ColumnCount; c++)
-            {
-                CurrentFigure.ColumnIndexOnGrid[c]--;
-            }
+            CurrentShape.MovePositionLeft();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
             return true;
         }
 
-        private bool CanMoveRight(Figure curFigure)
+        private bool CanMoveLeft(Shape curShape)
         {
-            int figureWidth = curFigure.ColumnCount;
-            int figureHeight = curFigure.RowCount;
+            int shapeWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
 
-            for (int r = 0; r < figureHeight; r++)
+            for (int r = 0; r < shapeHeight; r++)
             {
-                for (int c = figureWidth - 1; c >= 0; c--)
+                for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (curFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
-                        if (curFigure.ColumnIndexOnGrid[c] == Cols - 1 || 
-                            Grid[curFigure.RowIndexOnGrid[r]][curFigure.ColumnIndexOnGrid[c] + 1] != GridValue.Empty)
-                        {
+                        if (!CanTileMoveLeft(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
                             return false;
-                        }
+
                         break;
                     }
                 }
             }
+            return true;
+        }
+
+        private bool CanTileMoveLeft(int rowPosOnGrid, int columnPosOnGrid)
+        {
+            if (columnPosOnGrid == 0 ||
+                    Grid[rowPosOnGrid][columnPosOnGrid - 1] != GridValue.Empty)
+            {
+                return false;
+            }
+
             return true;
         }
 
         public bool MoveRight()
         {
-            if (!CanMoveRight(CurrentFigure))
+            if (!CanShapeMoveRight(CurrentShape))
                 return false;
 
-            for (int c = 0; c < CurrentFigure.ColumnCount; c++)
-            {
-                CurrentFigure.ColumnIndexOnGrid[c]++;
-            }
+            CurrentShape.MovePositionRight();
 
-            ProjectedFigure = CheckFallDown(CurrentFigure);
             return true;
         }
 
-
-        private Dir_Rotation GetNewDirection(Dir_Rotation currentDirection, bool isClockwise)
+        private bool CanShapeMoveRight(Shape curShape)
         {
-            int enumSize = Enum.GetValues(typeof(Dir_Rotation)).Length;
+            int shaprWidth = curShape.ColumnsCount;
+            int shapeHeight = curShape.RowsCount;
 
-            if (isClockwise)
-                return (Dir_Rotation)(((int)currentDirection == (enumSize - 1)) ? 0 : (int)currentDirection + 1);
-            else
-                return (Dir_Rotation)(((int)currentDirection == 0) ? (enumSize - 1) : (int)currentDirection - 1);
+            for (int r = 0; r < shapeHeight; r++)
+            {
+                for (int c = shaprWidth - 1; c >= 0; c--)
+                {
+                    if (curShape.ShapeGrid[r, c] != GridValue.Empty)
+                    {
+                        if (!CanTileMoveRight(curShape.RowsPosition[r], curShape.ColumnsPosition[c]))
+                            return false;
+                        
+                        break;
+                    }
+                }
+            }
+            return true;
         }
 
-        private bool CanRotate(bool isClockwise, Figure curFigure)
+        private bool CanTileMoveRight(int rowPosOnGrid, int columnPosOnGrid)
         {
-            Figure rotationFigure = curFigure.Clone();
-            rotationFigure.RowIndexOnGrid = (int[])curFigure.RowIndexOnGrid.Clone();
-            rotationFigure.ColumnIndexOnGrid = (int[])curFigure.ColumnIndexOnGrid.Clone();
-
-            Dir_Rotation newDir = GetNewDirection(rotationFigure.Direction, isClockwise);
-
-            rotationFigure.SetNewDirection(newDir);
-
-            int figureWidth = rotationFigure.ColumnCount;
-            int figureHeight = rotationFigure.RowCount;
-
-            for (int r = 0; r < figureHeight; r++)
+            if (columnPosOnGrid == Columns - 1 ||
+                    Grid[rowPosOnGrid][columnPosOnGrid + 1] != GridValue.Empty)
             {
-                for (int c = 0; c < figureWidth; c++)
+                return false;
+            }
+
+            return true;
+        }
+
+        public enum DirectionOfRotation
+        {
+            isClockwise,
+            isCounterclockwise
+        }
+
+        public bool Rotate(DirectionOfRotation direction)
+        {
+            if (!CanRotate(CurrentShape, direction))
+                return false;
+
+            if (direction == DirectionOfRotation.isClockwise)
+                CurrentShape.RotateClockwise();
+            else
+                CurrentShape.RotateCounterclockwise();
+
+            return true;
+        }
+
+        private bool CanRotate(Shape curShape, DirectionOfRotation direction)
+        {
+            Shape rotationShape = curShape.DeepCopy();
+
+            if (direction == DirectionOfRotation.isClockwise)
+                rotationShape.RotateClockwise();
+            else
+                rotationShape.RotateCounterclockwise();
+
+            int shapeWidth = rotationShape.ColumnsCount;
+            int shapeHeight = rotationShape.RowsCount;
+
+            for (int r = 0; r < shapeHeight; r++)
+            {
+                for (int c = 0; c < shapeWidth; c++)
                 {
-                    if (rotationFigure.FigureValue[r, c] != GridValue.Empty)
+                    if (rotationShape.ShapeGrid[r, c] != GridValue.Empty)
                     {
-                        if (rotationFigure.RowIndexOnGrid[r] < 0 ||
-                            rotationFigure.ColumnIndexOnGrid[c] < 0 || rotationFigure.ColumnIndexOnGrid[c] >= Cols ||
-                            Grid[rotationFigure.RowIndexOnGrid[r]][rotationFigure.ColumnIndexOnGrid[c]] != GridValue.Empty)
+                        if (!IsTileOnEmptyGridValue(rotationShape.RowsPosition[r],
+                            rotationShape.ColumnsPosition[c]))
                         {
                             return false;
                         }
@@ -310,23 +377,37 @@ namespace Tetris
             return true;
         }
 
-        public void Rotate(bool isClockwise)
+        private bool IsTileOnEmptyGridValue(int rowPosOnGrid, int columnPosOnGrid)
         {
-            if (!CanRotate(isClockwise, CurrentFigure))
-                return;
-
-            Dir_Rotation newDir = GetNewDirection(CurrentFigure.Direction, isClockwise);
-
-            CurrentFigure.SetNewDirection(newDir);
-
-            ProjectedFigure = CheckFallDown(CurrentFigure);
+            if (rowPosOnGrid < 0 || columnPosOnGrid < 0 || columnPosOnGrid >= Columns
+                || Grid[rowPosOnGrid][columnPosOnGrid] != GridValue.Empty)
+            {
+                return false;
+            }
+            else
+                return true;
         }
 
-        public void checkGameOver()
+        public void IncreaseGameDifficulty()
         {
-            for (int c = 0; c < Cols; c++)
+            if (IterationTick > 100)
+                IterationTick--;
+
+            if (LockDelayTick > 100)
+                LockDelayTick --;
+        }
+
+        public void ActivateFastDrop() 
+            => isFastDropActive = true;
+        
+        public void DeactivateFastDrop()
+            => isFastDropActive = false;
+        
+        public void CheckGameOver()
+        {
+            for (int c = 0; c < Columns; c++)
             {
-                if (Grid[Rows - HiddenRowOnTop][c] != GridValue.Empty)
+                if (Grid[Rows - HiddenRowsOnTop - 1][c] != GridValue.Empty)
                     IsGameOver = true;
             }
         }
